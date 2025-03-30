@@ -2,8 +2,9 @@
 # -*- coding: utf-8 -*-
 
 """
-Modified DatabaseManager class with improved connection handling
-to prevent connection flood and host blocking.
+Enhanced DatabaseManager with persistent Raspberry Pi ID caching:
+- Once a Raspberry Pi ID is found, it's permanently cached and always used
+- Only if an ID has never been found will the system continue querying
 """
 
 import os
@@ -40,6 +41,14 @@ class DatabaseManager:
         self.reconnect_attempts = config.get("database", "reconnect_attempts")
         self.reconnect_delay = config.get("database", "reconnect_delay_seconds")
         
+        # Raspberry Pi Name aus der Konfiguration
+        self.raspberry_name = self.config.get("device", "name")
+        
+        # Cache für die Raspberry Pi ID
+        # None = wurde noch nie gefunden, positive Ganzzahl = gefundene ID
+        self.raspberry_id = None
+        self.id_found = False  # Flag, ob jemals eine ID gefunden wurde
+        
         # Offline-Speicher-Konfiguration
         self.offline_data_path = config.get("storage", "offline_data_path")
         self.max_offline_files = config.get("storage", "max_offline_files")
@@ -69,9 +78,14 @@ class DatabaseManager:
         # Exponential Backoff für Reconnect-Versuche
         self.max_reconnect_delay = 300  # 5 Minuten maximale Wartezeit
         self.last_connection_attempt = 0  # Zeitpunkt des letzten Verbindungsversuchs
+        self._connection_attempts = 1
+        
+        # Einmalige initiale Abfrage der Raspberry Pi ID beim Start
+        if self._check_connection():
+            self._get_raspberry_pi_id()
         
         logger.info(f"Datenbank-Manager initialisiert: {self.db_config['host']}:{self.db_config['port']}"
-                   f"/{self.db_config['database']}")
+                   f"/{self.db_config['database']} für Raspberry Pi '{self.raspberry_name}'")
     
     def _create_connection_pool(self, pool_size=3):
         """Erstellt einen Connection Pool für effizientere Verbindungsverwaltung."""
@@ -94,12 +108,6 @@ class DatabaseManager:
         time_since_last_attempt = current_time - self.last_connection_attempt
         
         # Berechne die Wartezeit basierend auf der Anzahl bisheriger Versuche
-        # Beginnt mit reconnect_delay und verdoppelt sich bei jedem Versuch
-        if hasattr(self, '_connection_attempts'):
-            self._connection_attempts += 1
-        else:
-            self._connection_attempts = 1
-            
         wait_time = min(
             self.reconnect_delay * (2 ** (self._connection_attempts - 1)),
             self.max_reconnect_delay
@@ -133,6 +141,7 @@ class DatabaseManager:
                 
             except Error as e:
                 logger.error(f"Fehler bei der Datenbankverbindung: {e}")
+                self._connection_attempts += 1
                 return False
         else:
             # Fallback zur alten Methode wenn kein Pool verfügbar
@@ -156,6 +165,7 @@ class DatabaseManager:
                 
             except Error as e:
                 logger.error(f"Fehler bei der Datenbankverbindung: {e}")
+                self._connection_attempts += 1
                 return False
         
         return False
@@ -175,7 +185,7 @@ class DatabaseManager:
             cursor.execute(f"CREATE DATABASE IF NOT EXISTS {db_name}")
             cursor.execute(f"USE {db_name}")
             
-            # Tabelle erstellen, falls nicht vorhanden (mit raspberry_name Feld)
+            # Tabelle erstellen, falls nicht vorhanden (mit raspberry_pi_id Feld)
             cursor.execute(f"""
             CREATE TABLE IF NOT EXISTS {self.table} (
                 id INT AUTO_INCREMENT PRIMARY KEY,
@@ -184,8 +194,9 @@ class DatabaseManager:
                 pressure FLOAT,
                 altitude FLOAT,
                 event_group VARCHAR(36) NOT NULL,
-                raspberry_name VARCHAR(100) NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                raspberry_pi_id INT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                INDEX (raspberry_pi_id)
             )
             """)
             
@@ -208,6 +219,42 @@ class DatabaseManager:
             logger.error(f"Fehler bei der Überprüfung der Datenbankverbindung: {e}")
             return False
     
+    def _get_raspberry_pi_id(self) -> Optional[int]:
+        """
+        Sucht die ID des Raspberry Pi anhand des Namens in der Datenbank.
+        Wenn einmal gefunden, wird die ID dauerhaft im Cache gespeichert.
+        
+        Returns:
+            Optional[int]: Die ID des Raspberry Pi oder None, wenn nicht gefunden
+        """
+        # Wenn bereits eine ID gefunden wurde, direkt zurückgeben
+        if self.id_found and self.raspberry_id is not None:
+            return self.raspberry_id
+            
+        # Nur wenn noch keine ID gefunden wurde, suchen
+        if not self._check_connection():
+            logger.warning("Keine Verbindung für Raspberry Pi ID-Abfrage")
+            return None
+            
+        try:
+            query = "SELECT id FROM raspberry_pis WHERE name = %s"
+            self.cursor.execute(query, (self.raspberry_name,))
+            result = self.cursor.fetchone()
+            
+            if result:
+                self.raspberry_id = result[0]
+                self.id_found = True  # Markiere als gefunden für zukünftige Abfragen
+                logger.info(f"Raspberry Pi '{self.raspberry_name}' gefunden mit ID {self.raspberry_id}")
+                return self.raspberry_id
+            else:
+                logger.warning(f"Kein Raspberry Pi mit dem Namen '{self.raspberry_name}' gefunden")
+                # ID nicht gefunden, aber wir setzen nicht self.id_found=True, damit weitere Versuche stattfinden
+                return None
+                
+        except Error as e:
+            logger.error(f"Fehler bei der Suche nach Raspberry Pi ID: {e}")
+            return None
+    
     def save_data(self, data_list: List[Dict]) -> None:
         """Fügt Daten zur Speicherungsqueue hinzu."""
         if not data_list:
@@ -227,11 +274,15 @@ class DatabaseManager:
                 # Hole das nächste Element aus der Queue
                 data_list, event_group = self.save_queue.get()
                 
-                # Versuche, die Daten in die Datenbank zu speichern
-                if self._check_connection():
-                    self._save_to_database(data_list, event_group)
+                # Hole die Raspberry Pi ID (wenn bereits gefunden, gibt direkt zurück)
+                raspberry_id = self._get_raspberry_pi_id()
+                
+                if raspberry_id is not None and self._check_connection():
+                    # Raspberry Pi wurde gefunden, speichere in Datenbank
+                    self._save_to_database(data_list, event_group, raspberry_id)
                 else:
-                    # Bei fehlender Verbindung offline speichern
+                    # Raspberry Pi wurde nicht gefunden oder keine DB-Verbindung
+                    # Speichere offline für spätere Synchronisation
                     self._save_offline(data_list, event_group)
                 
                 # Markiere die Aufgabe als erledigt
@@ -241,20 +292,13 @@ class DatabaseManager:
                 logger.error(f"Fehler bei der Verarbeitung der Speicherungsqueue: {e}")
                 time.sleep(1)  # Vermeidet Busy-Waiting bei Fehlern
     
-    def _save_to_database(self, data_list: List[Dict], event_group: str) -> None:
+    def _save_to_database(self, data_list: List[Dict], event_group: str, raspberry_id: int) -> None:
         """Speichert Daten direkt in der Datenbank."""
         try:
-            if not self._check_connection():
-                self._save_offline(data_list, event_group)
-                return
-            
-            # Hole Raspberry Pi Namen aus der Konfiguration
-            raspberry_name = self.config.get("device", "name")
-            
-            # SQL für Mehrfach-Insert (mit raspberry_name)
+            # SQL für Mehrfach-Insert (mit raspberry_pi_id)
             sql = f"""
             INSERT INTO {self.table} 
-            (timestamp, temperature, pressure, altitude, event_group, raspberry_name)
+            (timestamp, temperature, pressure, altitude, event_group, raspberry_pi_id)
             VALUES (%s, %s, %s, %s, %s, %s)
             """
             
@@ -268,14 +312,14 @@ class DatabaseManager:
                         data["pressure"],
                         data["altitude"],
                         event_group,
-                        raspberry_name
+                        raspberry_id
                     ))
             
             # Daten speichern
             self.cursor.executemany(sql, values)
             self.connection.commit()
             
-            logger.info(f"{len(values)} Datenpunkte in Datenbank gespeichert (Gruppe: {event_group})")
+            logger.info(f"{len(values)} Datenpunkte in Datenbank gespeichert (Gruppe: {event_group}, Raspberry ID: {raspberry_id})")
             
         except Error as e:
             logger.error(f"Fehler beim Speichern in der Datenbank: {e}")
@@ -301,9 +345,6 @@ class DatabaseManager:
     def _save_offline(self, data_list: List[Dict], event_group: str) -> None:
         """Speichert Daten offline in einer JSON-Datei."""
         try:
-            # Hole Raspberry Pi Namen aus der Konfiguration
-            raspberry_name = self.config.get("device", "name")
-            
             # Bereite die Daten für die JSON-Serialisierung vor
             serializable_data = []
             for data in data_list:
@@ -314,7 +355,7 @@ class DatabaseManager:
                         "pressure": data["pressure"],
                         "altitude": data["altitude"],
                         "event_group": event_group,
-                        "raspberry_name": raspberry_name
+                        "raspberry_name": self.raspberry_name
                     })
             
             # Dateiname basierend auf event_group
@@ -359,9 +400,12 @@ class DatabaseManager:
                 # Warte, bevor wir nach offline Dateien suchen
                 time.sleep(60)  # Prüfe jede Minute
                 
-                # Prüfe Datenbankverbindung
-                if not self._check_connection():
-                    logger.info("Keine Datenbankverbindung für Offline-Synchronisation verfügbar")
+                # Hole die Raspberry Pi ID (wenn bereits gefunden, gibt direkt zurück)
+                raspberry_id = self._get_raspberry_pi_id()
+                
+                # Nur synchronisieren, wenn eine gültige Raspberry Pi ID gefunden wurde
+                if raspberry_id is None or not self._check_connection():
+                    logger.info("Keine Raspberry Pi ID oder keine Datenbankverbindung für Offline-Synchronisation verfügbar")
                     continue
                 
                 # Liste alle Offline-Dateien auf
@@ -380,10 +424,15 @@ class DatabaseManager:
                         with open(file_path, 'r') as file:
                             data = json.load(file)
                         
-                        # SQL für Mehrfach-Insert (mit raspberry_name)
+                        # Prüfe, ob die Daten für diesen Raspberry Pi sind
+                        if len(data) > 0 and data[0].get("raspberry_name") != self.raspberry_name:
+                            logger.warning(f"Datei {file_path} enthält Daten für anderen Raspberry Pi ('{data[0].get('raspberry_name')}'), überspringe")
+                            continue
+                        
+                        # SQL für Mehrfach-Insert
                         sql = f"""
                         INSERT INTO {self.table} 
-                        (timestamp, temperature, pressure, altitude, event_group, raspberry_name)
+                        (timestamp, temperature, pressure, altitude, event_group, raspberry_pi_id)
                         VALUES (%s, %s, %s, %s, %s, %s)
                         """
                         
@@ -396,7 +445,7 @@ class DatabaseManager:
                                 item["pressure"],
                                 item["altitude"],
                                 item["event_group"],
-                                item.get("raspberry_name", self.config.get("device", "name"))
+                                raspberry_id
                             ))
                         
                         # Daten speichern
