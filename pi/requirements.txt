@@ -1,0 +1,14 @@
+# BMP280 Sensor Bibliothek
+adafruit-circuitpython-bmp280>=2.6.0
+
+# Board und Busio aus Circuit Python
+adafruit-blinka>=7.0.0
+
+# MySQL Datenbankverbindung
+mysql-connector-python>=8.0.27
+
+# Datentypen-Unterstützung
+typing-extensions>=4.0.0
+
+# Logging-Erweiterungen (optional)
+colorlog>=6.0.0
