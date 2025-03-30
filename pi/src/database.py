@@ -2,8 +2,8 @@
 # -*- coding: utf-8 -*-
 
 """
-Datenbankmodul für den BMP280 Höhenänderungs-Monitor.
-Verwaltet die Speicherung von Daten in der MySQL-Datenbank und Offline-Pufferung.
+Modified DatabaseManager class with improved connection handling
+to prevent connection flood and host blocking.
 """
 
 import os
@@ -16,7 +16,7 @@ from datetime import datetime
 from typing import List, Dict, Optional
 
 import mysql.connector
-from mysql.connector import Error
+from mysql.connector import Error, pooling
 
 # Importiere eigene Module
 from config import Config
@@ -45,9 +45,14 @@ class DatabaseManager:
         self.max_offline_files = config.get("storage", "max_offline_files")
         os.makedirs(self.offline_data_path, exist_ok=True)
         
-        # Verbindung und Cursor
-        self.connection = None
-        self.cursor = None
+        # Connection pool statt individueller Verbindungen
+        try:
+            self.cnx_pool = self._create_connection_pool()
+            self.connection = None
+            self.cursor = None
+        except Exception as e:
+            logger.error(f"Fehler beim Erstellen des Connection Pools: {e}")
+            self.cnx_pool = None
         
         # Queue für asynchrones Speichern
         self.save_queue = queue.Queue()
@@ -61,30 +66,98 @@ class DatabaseManager:
         # Erstelle Datenbank und Tabelle, wenn sie nicht existieren
         self._ensure_database_and_table()
         
+        # Exponential Backoff für Reconnect-Versuche
+        self.max_reconnect_delay = 300  # 5 Minuten maximale Wartezeit
+        self.last_connection_attempt = 0  # Zeitpunkt des letzten Verbindungsversuchs
+        
         logger.info(f"Datenbank-Manager initialisiert: {self.db_config['host']}:{self.db_config['port']}"
                    f"/{self.db_config['database']}")
     
+    def _create_connection_pool(self, pool_size=3):
+        """Erstellt einen Connection Pool für effizientere Verbindungsverwaltung."""
+        try:
+            pool = pooling.MySQLConnectionPool(
+                pool_name="altitude_pool",
+                pool_size=pool_size,
+                **self.db_config
+            )
+            logger.info(f"Connection Pool mit {pool_size} Verbindungen erstellt")
+            return pool
+        except Error as e:
+            logger.error(f"Fehler beim Erstellen des Connection Pools: {e}")
+            return None
+    
     def _connect(self) -> bool:
         """Stellt eine Verbindung zur Datenbank her."""
-        for attempt in range(self.reconnect_attempts):
+        # Exponential Backoff für wiederholte Verbindungsversuche
+        current_time = time.time()
+        time_since_last_attempt = current_time - self.last_connection_attempt
+        
+        # Berechne die Wartezeit basierend auf der Anzahl bisheriger Versuche
+        # Beginnt mit reconnect_delay und verdoppelt sich bei jedem Versuch
+        if hasattr(self, '_connection_attempts'):
+            self._connection_attempts += 1
+        else:
+            self._connection_attempts = 1
+            
+        wait_time = min(
+            self.reconnect_delay * (2 ** (self._connection_attempts - 1)),
+            self.max_reconnect_delay
+        )
+        
+        # Wenn nicht genug Zeit seit dem letzten Versuch vergangen ist, warte
+        if time_since_last_attempt < wait_time:
+            logger.info(f"Zu viele Verbindungsversuche, warte {wait_time - time_since_last_attempt:.1f}s")
+            return False
+            
+        self.last_connection_attempt = current_time
+        
+        # Versuche, aus dem Pool eine Verbindung zu bekommen
+        if self.cnx_pool:
             try:
-                if self.connection is not None and self.connection.is_connected():
-                    return True
+                logger.info(f"Verbinde zur Datenbank (Versuch {self._connection_attempts}/{self.reconnect_attempts})...")
                 
-                logger.info(f"Verbinde zur Datenbank (Versuch {attempt+1}/{self.reconnect_attempts})...")
-                self.connection = mysql.connector.connect(**self.db_config)
+                if self._connection_attempts > self.reconnect_attempts:
+                    logger.error("Maximale Anzahl an Verbindungsversuchen erreicht")
+                    # Setze den Zähler zurück und erhöhe die Wartezeit
+                    self._connection_attempts = 1
+                    return False
+                    
+                self.connection = self.cnx_pool.get_connection()
                 self.cursor = self.connection.cursor()
                 logger.info("Datenbankverbindung erfolgreich hergestellt")
+                
+                # Zurücksetzen des Versuchszählers bei erfolgreicher Verbindung
+                self._connection_attempts = 1
                 return True
                 
             except Error as e:
                 logger.error(f"Fehler bei der Datenbankverbindung: {e}")
-                if attempt < self.reconnect_attempts - 1:
-                    logger.info(f"Neuer Verbindungsversuch in {self.reconnect_delay} Sekunden...")
-                    time.sleep(self.reconnect_delay)
-                else:
+                return False
+        else:
+            # Fallback zur alten Methode wenn kein Pool verfügbar
+            try:
+                if self.connection is not None and self.connection.is_connected():
+                    return True
+                
+                logger.info(f"Verbinde zur Datenbank ohne Pool (Versuch {self._connection_attempts}/{self.reconnect_attempts})...")
+                
+                if self._connection_attempts > self.reconnect_attempts:
                     logger.error("Maximale Anzahl an Verbindungsversuchen erreicht")
+                    self._connection_attempts = 1
                     return False
+                    
+                self.connection = mysql.connector.connect(**self.db_config)
+                self.cursor = self.connection.cursor()
+                logger.info("Datenbankverbindung erfolgreich hergestellt")
+                
+                self._connection_attempts = 1
+                return True
+                
+            except Error as e:
+                logger.error(f"Fehler bei der Datenbankverbindung: {e}")
+                return False
+        
         return False
     
     def _ensure_database_and_table(self) -> None:
@@ -94,6 +167,7 @@ class DatabaseManager:
         db_name = config_without_db.pop("database")
         
         try:
+            # Verwende einen separaten Verbindungskontext nur für diesen Vorgang
             conn = mysql.connector.connect(**config_without_db)
             cursor = conn.cursor()
             
@@ -101,7 +175,7 @@ class DatabaseManager:
             cursor.execute(f"CREATE DATABASE IF NOT EXISTS {db_name}")
             cursor.execute(f"USE {db_name}")
             
-            # Tabelle erstellen, falls nicht vorhanden
+            # Tabelle erstellen, falls nicht vorhanden (mit raspberry_name Feld)
             cursor.execute(f"""
             CREATE TABLE IF NOT EXISTS {self.table} (
                 id INT AUTO_INCREMENT PRIMARY KEY,
@@ -110,6 +184,7 @@ class DatabaseManager:
                 pressure FLOAT,
                 altitude FLOAT,
                 event_group VARCHAR(36) NOT NULL,
+                raspberry_name VARCHAR(100) NOT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
             """)
@@ -173,11 +248,14 @@ class DatabaseManager:
                 self._save_offline(data_list, event_group)
                 return
             
-            # SQL für Mehrfach-Insert
+            # Hole Raspberry Pi Namen aus der Konfiguration
+            raspberry_name = self.config.get("device", "name")
+            
+            # SQL für Mehrfach-Insert (mit raspberry_name)
             sql = f"""
             INSERT INTO {self.table} 
-            (timestamp, temperature, pressure, altitude, event_group)
-            VALUES (%s, %s, %s, %s, %s)
+            (timestamp, temperature, pressure, altitude, event_group, raspberry_name)
+            VALUES (%s, %s, %s, %s, %s, %s)
             """
             
             # Daten für den Bulk-Insert vorbereiten
@@ -189,7 +267,8 @@ class DatabaseManager:
                         data["temperature"],
                         data["pressure"],
                         data["altitude"],
-                        event_group
+                        event_group,
+                        raspberry_name
                     ))
             
             # Daten speichern
@@ -202,10 +281,29 @@ class DatabaseManager:
             logger.error(f"Fehler beim Speichern in der Datenbank: {e}")
             # Bei Datenbankfehler offline speichern
             self._save_offline(data_list, event_group)
+        finally:
+            # Prüfe, ob die Verbindung weiterhin besteht
+            if self.connection and not self.connection.is_connected():
+                logger.warning("Verbindung unterbrochen, schließe Ressourcen")
+                if self.cursor:
+                    try:
+                        self.cursor.close()
+                    except:
+                        pass
+                if self.connection:
+                    try:
+                        self.connection.close()
+                    except:
+                        pass
+                self.cursor = None
+                self.connection = None
     
     def _save_offline(self, data_list: List[Dict], event_group: str) -> None:
         """Speichert Daten offline in einer JSON-Datei."""
         try:
+            # Hole Raspberry Pi Namen aus der Konfiguration
+            raspberry_name = self.config.get("device", "name")
+            
             # Bereite die Daten für die JSON-Serialisierung vor
             serializable_data = []
             for data in data_list:
@@ -215,7 +313,8 @@ class DatabaseManager:
                         "temperature": data["temperature"],
                         "pressure": data["pressure"],
                         "altitude": data["altitude"],
-                        "event_group": event_group
+                        "event_group": event_group,
+                        "raspberry_name": raspberry_name
                     })
             
             # Dateiname basierend auf event_group
@@ -281,11 +380,11 @@ class DatabaseManager:
                         with open(file_path, 'r') as file:
                             data = json.load(file)
                         
-                        # SQL für Mehrfach-Insert
+                        # SQL für Mehrfach-Insert (mit raspberry_name)
                         sql = f"""
                         INSERT INTO {self.table} 
-                        (timestamp, temperature, pressure, altitude, event_group)
-                        VALUES (%s, %s, %s, %s, %s)
+                        (timestamp, temperature, pressure, altitude, event_group, raspberry_name)
+                        VALUES (%s, %s, %s, %s, %s, %s)
                         """
                         
                         # Daten für den Bulk-Insert vorbereiten
@@ -296,7 +395,8 @@ class DatabaseManager:
                                 item["temperature"],
                                 item["pressure"],
                                 item["altitude"],
-                                item["event_group"]
+                                item["event_group"],
+                                item.get("raspberry_name", self.config.get("device", "name"))
                             ))
                         
                         # Daten speichern
@@ -316,7 +416,16 @@ class DatabaseManager:
     
     def close(self) -> None:
         """Schließt die Datenbankverbindung."""
+        if self.cursor:
+            try:
+                self.cursor.close()
+            except:
+                pass
+            
         if self.connection and self.connection.is_connected():
-            self.cursor.close()
-            self.connection.close()
-            logger.info("Datenbankverbindung geschlossen")
+            try:
+                self.connection.close()
+            except:
+                pass
+                
+        logger.info("Datenbankverbindung geschlossen")

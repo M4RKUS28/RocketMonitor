@@ -2,8 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """
-Konfigurationsmanager für den BMP280 Höhenänderungs-Monitor.
-Verwaltet das Laden, Speichern und Zugreifen auf Konfigurationseinstellungen.
+Updated Config class with device name configuration
 """
 
 import os
@@ -16,6 +15,9 @@ class Config:
     """Konfigurationsmanager für die Anwendung."""
     
     DEFAULT_CONFIG = {
+        "device": {
+            "name": "RaspberryPi-1",   # Name des Geräts - muss mit Frontend übereinstimmen
+        },
         "sensor": {
             "sample_rate_hz": 5,        # Abtastrate in Hz
             "i2c_address": 0x76,        # Standard I2C-Adresse für BMP280
@@ -23,11 +25,11 @@ class Config:
         },
         "detection": {
             "threshold_meters": 1.0,     # Schwellwert für Höhenänderungen in Metern
-            "comparison_window_seconds": 5, # Zeitfenster für Vergleich in Sekunden
-            "stabilization_time_seconds": 5 # Zeit ohne Änderungen bis Aufzeichnung stoppt
+            "comparison_window_seconds": 3, # Zeitfenster für Vergleich in Sekunden
+            "stabilization_time_seconds": 3 # Zeit ohne Änderungen bis Aufzeichnung stoppt
         },
         "buffer": {
-            "ring_buffer_seconds": 60    # Größe des Ringpuffers in Sekunden
+            "ring_buffer_seconds": 5    # Größe des Ringpuffers in Sekunden
         },
         "database": {
             "host": "localhost",
