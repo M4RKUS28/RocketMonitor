@@ -1,0 +1,56 @@
+version: '3.8'
+
+services:
+  # Backend Service
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+    environment:
+      - DB_HOST=db
+      - DB_USER=altitude_user
+      - DB_PASSWORD=your_secure_password
+      - DB_NAME=altitude_data
+      - DB_PORT=3306
+    depends_on:
+      - db
+    restart: unless-stopped
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  # Frontend Service
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    environment:
+      - REACT_APP_API_URL=http://localhost:8000
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  # MySQL Database
+  db:
+    image: mysql:8.0
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    environment:
+      - MYSQL_ROOT_PASSWORD=root_password
+      - MYSQL_DATABASE=altitude_data
+      - MYSQL_USER=altitude_user
+      - MYSQL_PASSWORD=your_secure_password
+    restart: unless-stopped
+    command: --default-authentication-plugin=mysql_native_password
+
+volumes:
+  mysql_data:
