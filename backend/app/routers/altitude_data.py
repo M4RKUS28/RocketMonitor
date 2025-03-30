@@ -1,8 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from sqlalchemy import func, and_
+from sqlalchemy import func, and_, exists, text
 from typing import List, Optional
 from datetime import datetime, timedelta
+
+from sqlalchemy.dialects import mysql  # oder die Dialekt, den du verwendest
+
+
 
 from .. import models, schemas, auth
 from ..database import get_db
@@ -23,6 +27,7 @@ async def get_chart_data(
 ):
     """
     Gibt Höhendaten für ein bestimmtes Team zurück, formatiert für die Chart-Darstellung.
+    Verwendet eine optimierte SQL-Abfrage mit EXISTS, um effizient nur relevante Daten zu laden.
     """
     # Benutzer darf nur sein eigenes Team oder als Admin alle Teams sehen
     if not current_user.is_admin and current_user.team_id != team_id:
@@ -39,32 +44,46 @@ async def get_chart_data(
     if end_time is None:
         end_time = datetime.now()
     
-    # Finde aktuelle oder letzte Raspberry Pi-Zuweisung für das Team
-    assignment = db.query(models.team_raspberry_association).filter(
-        models.team_raspberry_association.c.team_id == team_id,
-        models.team_raspberry_association.c.start_time <= end_time,
-        models.team_raspberry_association.c.end_time >= start_time
-    ).order_by(models.team_raspberry_association.c.start_time.desc()).first()
+    # Stellen Sie sicher, dass start_time und end_time als naive Datetimes vorliegen
+    # (entferne Zeitzoneninformationen, wenn vorhanden)
+    if start_time.tzinfo is not None:
+        start_time = start_time.replace(tzinfo=None)
+    if end_time.tzinfo is not None:
+        end_time = end_time.replace(tzinfo=None)
     
-    if not assignment:
-        # Keine Zuweisung gefunden, leere Daten zurückgeben
-        return schemas.ChartData(
-            timestamps=[],
-            altitudes=[],
-            max_altitude=0,
-            team_name=team.name
+    # Optimierte SQL-Abfrage mit EXISTS-Klausel
+    # Diese findet alle Höhendaten, die:
+    # 1. Von einem Raspberry Pi stammen, der dem Team zugewiesen wurde
+    # 2. Innerhalb des Zeitraums der Zuweisung liegen
+    # 3. Innerhalb des angefragten Zeitraums liegen
+    
+    exists_clause = exists().where(
+        and_(
+            models.team_raspberry_association.c.team_id == team_id,
+            models.team_raspberry_association.c.raspberry_id == models.AltitudeData.raspberry_pi_id,
+            models.team_raspberry_association.c.start_time <= models.AltitudeData.timestamp,
+            models.team_raspberry_association.c.end_time >= models.AltitudeData.timestamp
         )
+    )
     
-    # Passe den Zeitraum basierend auf der Zuweisung an
-    query_start = max(start_time, assignment.start_time)
-    query_end = min(end_time, assignment.end_time)
+    altitude_query = db.query(models.AltitudeData).filter(
+        models.AltitudeData.timestamp >= start_time,
+        models.AltitudeData.timestamp <= end_time,
+        exists_clause
+    ).order_by(models.AltitudeData.timestamp)
+
+
+    # Erstelle das SQL-Statement komplett, einschließlich aller Parameter
+    compiled_query = altitude_query.statement.compile(
+        dialect=db.bind.dialect,
+        compile_kwargs={"literal_binds": True}
+    )
+
+    # Gib das SQL-Statement aus
+    print("DEBUG SQL QUERY:")
+    print(str(compiled_query))
     
-    # Hole die Höhendaten für den angegebenen Zeitraum und das zugewiesene Raspberry Pi
-    altitude_data = db.query(models.AltitudeData).filter(
-        models.AltitudeData.raspberry_pi_id == assignment.raspberry_id,
-        models.AltitudeData.timestamp >= query_start,
-        models.AltitudeData.timestamp <= query_end
-    ).order_by(models.AltitudeData.timestamp).all()
+    altitude_data = altitude_query.all()
     
     # Extrahiere die Zeitstempel und Höhenwerte
     timestamps = [data.timestamp for data in altitude_data]
@@ -99,9 +118,14 @@ async def get_altitude_data(
         query = query.filter(models.AltitudeData.raspberry_pi_id == raspberry_pi_id)
     
     # Filter nach Zeitraum
+    # Konvertiere Zeitzonen-behaftete Datumszeiten in naive Datumszeiten
     if start_time is not None:
+        if start_time.tzinfo is not None:
+            start_time = start_time.replace(tzinfo=None)
         query = query.filter(models.AltitudeData.timestamp >= start_time)
     if end_time is not None:
+        if end_time.tzinfo is not None:
+            end_time = end_time.replace(tzinfo=None)
         query = query.filter(models.AltitudeData.timestamp <= end_time)
     
     # Sortiere nach Zeitstempel und begrenze die Ergebnisse
@@ -126,9 +150,14 @@ async def create_altitude_data(
     if raspberry_pi is None:
         raise HTTPException(status_code=404, detail="Raspberry Pi nicht gefunden")
     
+    # Stellen Sie sicher, dass der Zeitstempel timezone-naive ist
+    timestamp = data.timestamp
+    if timestamp.tzinfo is not None:
+        timestamp = timestamp.replace(tzinfo=None)
+    
     # Erstellen eines neuen Höhendatensatzes
     new_data = models.AltitudeData(
-        timestamp=data.timestamp,
+        timestamp=timestamp,
         temperature=data.temperature,
         pressure=data.pressure,
         altitude=data.altitude,
@@ -141,3 +170,5 @@ async def create_altitude_data(
     db.refresh(new_data)
     
     return new_data
+
+
