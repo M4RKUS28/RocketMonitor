@@ -128,162 +128,188 @@ const TeamDashboard = () => {
         </Box>
       </Paper>
 
-      {/* Punkteübersicht */}
-      <Grid container spacing={3} sx={{ mb: 4 }}>
-        <Grid item xs={12} md={3}>
-          <Card 
+      {teamData.points_visible ? (
+        <>
+          {/* Punkteübersicht */}
+          <Grid container spacing={3} sx={{ mb: 4 }}>
+            <Grid item xs={12} md={3}>
+              <Card 
+                sx={{ 
+                  height: '100%',
+                  borderRadius: 3,
+                  transition: 'transform 0.3s',
+                  '&:hover': {
+                    transform: 'translateY(-5px)'
+                  },
+                  boxShadow: isDarkMode 
+                    ? '0 4px 20px rgba(0,0,0,0.3)' 
+                    : '0 4px 20px rgba(0,0,0,0.1)',
+                }}
+              >
+                <CardContent>
+                  <Typography variant="h6" color="text.secondary" gutterBottom>
+                    Begrüßung
+                  </Typography>
+                  <Typography variant="h3" component="div" color="primary">
+                    {teamData.greeting_points}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                    Punkte für den ersten Eindruck
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+
+            <Grid item xs={12} md={3}>
+              <Card 
+                sx={{ 
+                  height: '100%',
+                  borderRadius: 3,
+                  transition: 'transform 0.3s',
+                  '&:hover': {
+                    transform: 'translateY(-5px)'
+                  },
+                  boxShadow: isDarkMode 
+                    ? '0 4px 20px rgba(0,0,0,0.3)' 
+                    : '0 4px 20px rgba(0,0,0,0.1)',
+                }}
+              >
+                <CardContent>
+                  <Typography variant="h6" color="text.secondary" gutterBottom>
+                    Fragen
+                  </Typography>
+                  <Typography variant="h3" component="div" color="primary">
+                    {teamData.questions_points}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                    Punkte für richtige Antworten
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+
+            <Grid item xs={12} md={3}>
+              <Card 
+                sx={{ 
+                  height: '100%',
+                  borderRadius: 3,
+                  transition: 'transform 0.3s',
+                  '&:hover': {
+                    transform: 'translateY(-5px)'
+                  },
+                  boxShadow: isDarkMode 
+                    ? '0 4px 20px rgba(0,0,0,0.3)' 
+                    : '0 4px 20px rgba(0,0,0,0.1)',
+                }}
+              >
+                <CardContent>
+                  <Typography variant="h6" color="text.secondary" gutterBottom>
+                    Posten
+                  </Typography>
+                  <Typography variant="h3" component="div" color="primary">
+                    {teamData.station_points}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                    Punkte für die Stationsarbeit
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+
+            <Grid item xs={12} md={3}>
+              <Card 
+                sx={{ 
+                  height: '100%',
+                  borderRadius: 3,
+                  transition: 'transform 0.3s',
+                  '&:hover': {
+                    transform: 'translateY(-5px)'
+                  },
+                  boxShadow: isDarkMode 
+                    ? '0 4px 20px rgba(0,0,0,0.3)' 
+                    : '0 4px 20px rgba(0,0,0,0.1)',
+                }}
+              >
+                <CardContent>
+                  <Typography variant="h6" color="text.secondary" gutterBottom>
+                    Verabschiedung
+                  </Typography>
+                  <Typography variant="h3" component="div" color="primary">
+                    {teamData.farewell_points}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                    Punkte für den Abschluss
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+          </Grid>
+
+          {/* Gesamtpunktzahl */}
+          <Box 
             sx={{ 
-              height: '100%',
-              borderRadius: 3,
-              transition: 'transform 0.3s',
-              '&:hover': {
-                transform: 'translateY(-5px)'
-              },
-              boxShadow: isDarkMode 
-                ? '0 4px 20px rgba(0,0,0,0.3)' 
-                : '0 4px 20px rgba(0,0,0,0.1)',
+              display: 'flex', 
+              justifyContent: 'center', 
+              mb: 4 
             }}
           >
-            <CardContent>
-              <Typography variant="h6" color="text.secondary" gutterBottom>
-                Begrüßung
+            <Paper 
+              elevation={3} 
+              sx={{ 
+                p: 3, 
+                textAlign: 'center',
+                width: { xs: '100%', md: '50%' },
+                borderRadius: 3,
+                background: isDarkMode 
+                  ? 'linear-gradient(145deg, #6a1b9a 0%, #4a148c 100%)' 
+                  : 'linear-gradient(145deg, #9c27b0 0%, #7b1fa2 100%)',
+                color: 'white',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: 1
+              }}
+            >
+              <Box display="flex" alignItems="center" gap={1}>
+                <EmojiEventsIcon fontSize="large" />
+                <Typography variant="h5">Gesamtpunktzahl</Typography>
+              </Box>
+              <Typography 
+                variant="h2" 
+                component="div" 
+                sx={{ 
+                  fontWeight: 'bold',
+                  mt: 1
+                }}
+              >
+                {teamData.total_points}
               </Typography>
-              <Typography variant="h3" component="div" color="primary">
-                {teamData.greeting_points}
-              </Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                Punkte für den ersten Eindruck
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-
-        <Grid item xs={12} md={3}>
-          <Card 
-            sx={{ 
-              height: '100%',
-              borderRadius: 3,
-              transition: 'transform 0.3s',
-              '&:hover': {
-                transform: 'translateY(-5px)'
-              },
-              boxShadow: isDarkMode 
-                ? '0 4px 20px rgba(0,0,0,0.3)' 
-                : '0 4px 20px rgba(0,0,0,0.1)',
-            }}
-          >
-            <CardContent>
-              <Typography variant="h6" color="text.secondary" gutterBottom>
-                Fragen
-              </Typography>
-              <Typography variant="h3" component="div" color="primary">
-                {teamData.questions_points}
-              </Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                Punkte für richtige Antworten
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-
-        <Grid item xs={12} md={3}>
-          <Card 
-            sx={{ 
-              height: '100%',
-              borderRadius: 3,
-              transition: 'transform 0.3s',
-              '&:hover': {
-                transform: 'translateY(-5px)'
-              },
-              boxShadow: isDarkMode 
-                ? '0 4px 20px rgba(0,0,0,0.3)' 
-                : '0 4px 20px rgba(0,0,0,0.1)',
-            }}
-          >
-            <CardContent>
-              <Typography variant="h6" color="text.secondary" gutterBottom>
-                Posten
-              </Typography>
-              <Typography variant="h3" component="div" color="primary">
-                {teamData.station_points}
-              </Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                Punkte für die Stationsarbeit
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-
-        <Grid item xs={12} md={3}>
-          <Card 
-            sx={{ 
-              height: '100%',
-              borderRadius: 3,
-              transition: 'transform 0.3s',
-              '&:hover': {
-                transform: 'translateY(-5px)'
-              },
-              boxShadow: isDarkMode 
-                ? '0 4px 20px rgba(0,0,0,0.3)' 
-                : '0 4px 20px rgba(0,0,0,0.1)',
-            }}
-          >
-            <CardContent>
-              <Typography variant="h6" color="text.secondary" gutterBottom>
-                Verabschiedung
-              </Typography>
-              <Typography variant="h3" component="div" color="primary">
-                {teamData.farewell_points}
-              </Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                Punkte für den Abschluss
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
-
-      {/* Gesamtpunktzahl */}
-      <Box 
-        sx={{ 
-          display: 'flex', 
-          justifyContent: 'center', 
-          mb: 4 
-        }}
-      >
+            </Paper>
+          </Box>
+        </>
+      ) : (
         <Paper 
           elevation={3} 
           sx={{ 
-            p: 3, 
-            textAlign: 'center',
-            width: { xs: '100%', md: '50%' },
+            p: 4, 
+            mb: 4, 
             borderRadius: 3,
+            textAlign: 'center',
             background: isDarkMode 
-              ? 'linear-gradient(145deg, #6a1b9a 0%, #4a148c 100%)' 
-              : 'linear-gradient(145deg, #9c27b0 0%, #7b1fa2 100%)',
-            color: 'white',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            gap: 1
+              ? 'linear-gradient(145deg, #424242 0%, #303030 100%)' 
+              : 'linear-gradient(145deg, #f5f5f5 0%, #e0e0e0 100%)'
           }}
         >
-          <Box display="flex" alignItems="center" gap={1}>
-            <EmojiEventsIcon fontSize="large" />
-            <Typography variant="h5">Gesamtpunktzahl</Typography>
+          <Box sx={{ p: 3 }}>
+            <Typography variant="h5" component="h2" gutterBottom>
+              Punktestand wird angezeigt, sobald alle Teams die Aufgaben abgeschlossen haben
+            </Typography>
+            <Typography variant="body1" color="text.secondary">
+              Der Administrator wird die Ergebnisse freischalten, wenn der Wettbewerb abgeschlossen ist.
+            </Typography>
           </Box>
-          <Typography 
-            variant="h2" 
-            component="div" 
-            sx={{ 
-              fontWeight: 'bold',
-              mt: 1
-            }}
-          >
-            {teamData.total_points}
-          </Typography>
         </Paper>
-      </Box>
+      )}
 
       {/* Höhendiagramm */}
       <Paper 

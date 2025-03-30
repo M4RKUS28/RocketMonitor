@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 
 from sqlalchemy.dialects import mysql  # oder die Dialekt, den du verwendest
 
+from datetime import datetime, timezone
 
 
 from .. import models, schemas, auth
@@ -16,6 +17,8 @@ router = APIRouter(
     tags=["altitude"],
     responses={404: {"description": "Not found"}},
 )
+
+
 
 @router.get("/chart/{team_id}", response_model=schemas.ChartData)
 async def get_chart_data(
@@ -47,9 +50,13 @@ async def get_chart_data(
     # Stellen Sie sicher, dass start_time und end_time als naive Datetimes vorliegen
     # (entferne Zeitzoneninformationen, wenn vorhanden)
     if start_time.tzinfo is not None:
-        start_time = start_time.replace(tzinfo=None)
+        # Convert to UTC, then remove timezone info
+        start_time = start_time.astimezone(timezone.utc).replace(tzinfo=None)
     if end_time.tzinfo is not None:
-        end_time = end_time.replace(tzinfo=None)
+        # Convert to UTC, then remove timezone info
+        end_time = end_time.astimezone(timezone.utc).replace(tzinfo=None)
+
+
     
     # Optimierte SQL-Abfrage mit EXISTS-Klausel
     # Diese findet alle Höhendaten, die:
@@ -67,27 +74,17 @@ async def get_chart_data(
     )
     
     altitude_query = db.query(models.AltitudeData).filter(
-        models.AltitudeData.timestamp >= start_time,
-        models.AltitudeData.timestamp <= end_time,
+      #  models.AltitudeData.timestamp >= start_time,
+      #  models.AltitudeData.timestamp <= end_time,
         exists_clause
     ).order_by(models.AltitudeData.timestamp)
-
-
-    # Erstelle das SQL-Statement komplett, einschließlich aller Parameter
-    compiled_query = altitude_query.statement.compile(
-        dialect=db.bind.dialect,
-        compile_kwargs={"literal_binds": True}
-    )
-
-    # Gib das SQL-Statement aus
-    print("DEBUG SQL QUERY:")
-    print(str(compiled_query))
     
     altitude_data = altitude_query.all()
     
     # Extrahiere die Zeitstempel und Höhenwerte
     timestamps = [data.timestamp for data in altitude_data]
     altitudes = [data.altitude for data in altitude_data]
+    event_groups = [data.event_group for data in altitude_data]  # Neue Eigenschaft
     
     # Berechne die maximale Höhe
     max_altitude = max(altitudes) if altitudes else 0
@@ -95,6 +92,7 @@ async def get_chart_data(
     return schemas.ChartData(
         timestamps=timestamps,
         altitudes=altitudes,
+        event_groups=event_groups,  # Neue Eigenschaft
         max_altitude=max_altitude,
         team_name=team.name
     )

@@ -34,13 +34,15 @@ class TeamBase(BaseModel):
 class TeamCreate(TeamBase):
     password: Optional[str] = None  # Passwort für Team-Login
 
+
 class TeamUpdate(BaseModel):
     name: Optional[str] = None
-    password: Optional[str] = None  # Passwort für Team-Login
+    password: Optional[str] = None 
     greeting_points: Optional[int] = None
     questions_points: Optional[int] = None
     station_points: Optional[int] = None
     farewell_points: Optional[int] = None
+    points_visible: Optional[bool] = None
 
 class TeamPoints(BaseModel):
     greeting_points: Optional[int] = 0
@@ -56,6 +58,7 @@ class Team(TeamBase):
     station_points: int
     farewell_points: int
     admin_id: int
+    points_visible: bool = False
 
     class Config:
         orm_mode = True
@@ -119,6 +122,7 @@ class AltitudeData(AltitudeDataBase):
 class ChartData(BaseModel):
     timestamps: List[datetime]
     altitudes: List[float]
+    event_groups: List[str]  # Neue Eigenschaft für die Gruppierung
     max_altitude: float
     team_name: str
 

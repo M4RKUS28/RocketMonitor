@@ -23,7 +23,11 @@ import {
   FormControl,
   InputLabel,
   OutlinedInput,
-  InputAdornment
+  InputAdornment,
+  Switch,
+  FormControlLabel,
+  Tooltip,
+  Badge
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
@@ -31,6 +35,7 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import GroupsIcon from '@mui/icons-material/Groups';
 import ScoreboardIcon from '@mui/icons-material/Scoreboard';
 import VisibilityIcon from '@mui/icons-material/Visibility';
+import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
 import KeyIcon from '@mui/icons-material/Key';
 import Visibility from '@mui/icons-material/Visibility';
 import VisibilityOff from '@mui/icons-material/VisibilityOff';
@@ -235,6 +240,26 @@ const TeamManagement = () => {
       setSnackbar({ 
         open: true, 
         message: 'Fehler beim Löschen des Teams.', 
+        severity: 'error' 
+      });
+    }
+  };
+
+  // Punktesichtbarkeit umschalten
+  const handleTogglePointsVisibility = async (teamId, visible) => {
+    try {
+      const updatedTeam = await teamsAPI.updateTeam(teamId, { points_visible: visible });
+      setTeams(teams.map(team => team.id === updatedTeam.id ? updatedTeam : team));
+      setSnackbar({ 
+        open: true, 
+        message: `Punktesichtbarkeit für Team "${updatedTeam.name}" ${visible ? 'aktiviert' : 'deaktiviert'}`, 
+        severity: 'success' 
+      });
+    } catch (err) {
+      console.error('Fehler beim Ändern der Punktesichtbarkeit:', err);
+      setSnackbar({ 
+        open: true, 
+        message: 'Fehler beim Ändern der Punktesichtbarkeit.', 
         severity: 'error' 
       });
     }
@@ -477,6 +502,37 @@ const TeamManagement = () => {
                       </Typography>
                     </Box>
                     <ScoreboardIcon color="secondary" fontSize="large" />
+                  </Box>
+                  
+                  <Box 
+                    sx={{ 
+                      mt: 3,
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      p: 2,
+                      borderRadius: 2,
+                      bgcolor: isDarkMode ? 'rgba(0, 0, 0, 0.1)' : 'rgba(0, 0, 0, 0.05)'
+                    }}
+                  >
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          checked={team.points_visible || false}
+                          onChange={() => handleTogglePointsVisibility(team.id, !team.points_visible)}
+                          color="primary"
+                        />
+                      }
+                      label="Punkte für Team sichtbar"
+                    />
+                    <Tooltip title={team.points_visible ? "Punkte sind sichtbar" : "Punkte sind versteckt"}>
+                      <Badge color={team.points_visible ? "success" : "error"} variant="dot">
+                        {team.points_visible ? 
+                          <VisibilityIcon color="success" /> : 
+                          <VisibilityOffIcon color="action" />
+                        }
+                      </Badge>
+                    </Tooltip>
                   </Box>
                 </CardContent>
                 
