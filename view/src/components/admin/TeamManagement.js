@@ -19,7 +19,11 @@ import {
   Grid,
   Card,
   CardContent,
-  CardActions
+  CardActions,
+  FormControl,
+  InputLabel,
+  OutlinedInput,
+  InputAdornment
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
@@ -27,6 +31,9 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import GroupsIcon from '@mui/icons-material/Groups';
 import ScoreboardIcon from '@mui/icons-material/Scoreboard';
 import VisibilityIcon from '@mui/icons-material/Visibility';
+import KeyIcon from '@mui/icons-material/Key';
+import Visibility from '@mui/icons-material/Visibility';
+import VisibilityOff from '@mui/icons-material/VisibilityOff';
 import { Link } from 'react-router-dom';
 import { useTheme } from '../../contexts/ThemeContext';
 import { teamsAPI } from '../../api';
@@ -41,12 +48,14 @@ const TeamManagement = () => {
   // Dialog-Zustände
   const [newTeamDialog, setNewTeamDialog] = useState(false);
   const [editTeamDialog, setEditTeamDialog] = useState(false);
+  const [passwordDialog, setPasswordDialog] = useState(false);
   const [pointsDialog, setPointsDialog] = useState(false);
   const [deleteDialog, setDeleteDialog] = useState(false);
   
   // Form-Zustände
-  const [newTeamName, setNewTeamName] = useState('');
+  const [newTeamData, setNewTeamData] = useState({ name: '', password: '' });
   const [editTeamData, setEditTeamData] = useState({ id: null, name: '' });
+  const [passwordData, setPasswordData] = useState({ id: null, name: '', password: '' });
   const [pointsData, setPointsData] = useState({ 
     id: null, 
     name: '',
@@ -56,6 +65,10 @@ const TeamManagement = () => {
     farewell_points: 0 
   });
   const [deleteTeamId, setDeleteTeamId] = useState(null);
+  
+  // Password visibility
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showEditPassword, setShowEditPassword] = useState(false);
 
   // Daten laden
   useEffect(() => {
@@ -79,7 +92,7 @@ const TeamManagement = () => {
   // Neues Team erstellen
   const handleCreateTeam = async () => {
     try {
-      if (!newTeamName.trim()) {
+      if (!newTeamData.name.trim()) {
         setSnackbar({ 
           open: true, 
           message: 'Bitte geben Sie einen Teamnamen ein', 
@@ -88,10 +101,19 @@ const TeamManagement = () => {
         return;
       }
       
-      const newTeam = await teamsAPI.createTeam({ name: newTeamName });
+      if (!newTeamData.password.trim()) {
+        setSnackbar({ 
+          open: true, 
+          message: 'Bitte geben Sie ein Passwort ein', 
+          severity: 'error' 
+        });
+        return;
+      }
+      
+      const newTeam = await teamsAPI.createTeam(newTeamData);
       setTeams([...teams, newTeam]);
       setNewTeamDialog(false);
-      setNewTeamName('');
+      setNewTeamData({ name: '', password: '' });
       setSnackbar({ 
         open: true, 
         message: `Team "${newTeam.name}" erfolgreich erstellt`, 
@@ -132,6 +154,36 @@ const TeamManagement = () => {
       setSnackbar({ 
         open: true, 
         message: 'Fehler beim Bearbeiten des Teams. Möglicherweise existiert bereits ein Team mit diesem Namen.', 
+        severity: 'error' 
+      });
+    }
+  };
+  
+  // Passwort aktualisieren
+  const handleUpdatePassword = async () => {
+    try {
+      if (!passwordData.password.trim()) {
+        setSnackbar({ 
+          open: true, 
+          message: 'Bitte geben Sie ein Passwort ein', 
+          severity: 'error' 
+        });
+        return;
+      }
+      
+      const updatedTeam = await teamsAPI.updateTeam(passwordData.id, { password: passwordData.password });
+      setPasswordDialog(false);
+      setPasswordData({ id: null, name: '', password: '' });
+      setSnackbar({ 
+        open: true, 
+        message: `Passwort für Team "${updatedTeam.name}" erfolgreich aktualisiert`, 
+        severity: 'success' 
+      });
+    } catch (err) {
+      console.error('Fehler beim Aktualisieren des Passworts:', err);
+      setSnackbar({ 
+        open: true, 
+        message: 'Fehler beim Aktualisieren des Passworts.', 
         severity: 'error' 
       });
     }
@@ -193,6 +245,11 @@ const TeamManagement = () => {
     setEditTeamData({ id: team.id, name: team.name });
     setEditTeamDialog(true);
   };
+  
+  const openPasswordDialog = (team) => {
+    setPasswordData({ id: team.id, name: team.name, password: '' });
+    setPasswordDialog(true);
+  };
 
   const openPointsDialog = (team) => {
     setPointsData({
@@ -215,6 +272,15 @@ const TeamManagement = () => {
   const calculateTotalPoints = (team) => {
     return team.greeting_points + team.questions_points + 
            team.station_points + team.farewell_points;
+  };
+  
+  // Toggle password visibility
+  const toggleNewPasswordVisibility = () => {
+    setShowNewPassword(!showNewPassword);
+  };
+  
+  const toggleEditPasswordVisibility = () => {
+    setShowEditPassword(!showEditPassword);
   };
 
   if (loading) {
@@ -306,13 +372,24 @@ const TeamManagement = () => {
                         onClick={() => openEditDialog(team)}
                         size="small"
                         sx={{ mr: 1 }}
+                        title="Name bearbeiten"
                       >
                         <EditIcon />
+                      </IconButton>
+                      <IconButton 
+                        color="warning" 
+                        onClick={() => openPasswordDialog(team)}
+                        size="small"
+                        sx={{ mr: 1 }}
+                        title="Passwort ändern"
+                      >
+                        <KeyIcon />
                       </IconButton>
                       <IconButton 
                         color="error" 
                         onClick={() => openDeleteDialog(team.id)}
                         size="small"
+                        title="Team löschen"
                       >
                         <DeleteIcon />
                       </IconButton>
@@ -436,7 +513,7 @@ const TeamManagement = () => {
         <DialogTitle>Neues Team erstellen</DialogTitle>
         <DialogContent>
           <DialogContentText>
-            Geben Sie einen Namen für das neue Team ein.
+            Geben Sie einen Namen und ein Passwort für das neue Team ein.
           </DialogContentText>
           <TextField
             autoFocus
@@ -446,9 +523,32 @@ const TeamManagement = () => {
             type="text"
             fullWidth
             variant="outlined"
-            value={newTeamName}
-            onChange={(e) => setNewTeamName(e.target.value)}
+            value={newTeamData.name}
+            onChange={(e) => setNewTeamData({ ...newTeamData, name: e.target.value })}
+            sx={{ mb: 2, mt: 1 }}
           />
+          
+          <FormControl variant="outlined" fullWidth>
+            <InputLabel htmlFor="new-password">Passwort</InputLabel>
+            <OutlinedInput
+              id="new-password"
+              type={showNewPassword ? 'text' : 'password'}
+              value={newTeamData.password}
+              onChange={(e) => setNewTeamData({ ...newTeamData, password: e.target.value })}
+              endAdornment={
+                <InputAdornment position="end">
+                  <IconButton
+                    aria-label="Toggle password visibility"
+                    onClick={toggleNewPasswordVisibility}
+                    edge="end"
+                  >
+                    {showNewPassword ? <VisibilityOff /> : <Visibility />}
+                  </IconButton>
+                </InputAdornment>
+              }
+              label="Passwort"
+            />
+          </FormControl>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setNewTeamDialog(false)}>Abbrechen</Button>
@@ -480,6 +580,43 @@ const TeamManagement = () => {
         <DialogActions>
           <Button onClick={() => setEditTeamDialog(false)}>Abbrechen</Button>
           <Button onClick={handleEditTeam} variant="contained" color="primary">
+            Speichern
+          </Button>
+        </DialogActions>
+      </Dialog>
+      
+      {/* Passwort bearbeiten Dialog */}
+      <Dialog open={passwordDialog} onClose={() => setPasswordDialog(false)}>
+        <DialogTitle>Passwort ändern</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            Ändern Sie das Passwort für Team "{passwordData.name}".
+          </DialogContentText>
+          <FormControl variant="outlined" fullWidth sx={{ mt: 2 }}>
+            <InputLabel htmlFor="edit-password">Neues Passwort</InputLabel>
+            <OutlinedInput
+              id="edit-password"
+              type={showEditPassword ? 'text' : 'password'}
+              value={passwordData.password}
+              onChange={(e) => setPasswordData({ ...passwordData, password: e.target.value })}
+              endAdornment={
+                <InputAdornment position="end">
+                  <IconButton
+                    aria-label="Toggle password visibility"
+                    onClick={toggleEditPasswordVisibility}
+                    edge="end"
+                  >
+                    {showEditPassword ? <VisibilityOff /> : <Visibility />}
+                  </IconButton>
+                </InputAdornment>
+              }
+              label="Neues Passwort"
+            />
+          </FormControl>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setPasswordDialog(false)}>Abbrechen</Button>
+          <Button onClick={handleUpdatePassword} variant="contained" color="primary">
             Speichern
           </Button>
         </DialogActions>
