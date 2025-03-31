@@ -146,23 +146,50 @@ export const adminAPI = {
     return response.data;
   },
   
-  // Team-Raspberry Pi Zuweisungen
+  // Update the createAssignment function in adminAPI
   createAssignment: async (assignmentData) => {
-    // Prüfen, ob eine Startzeit angegeben wurde
+    // Ensure the data is properly formatted
     const data = {
       team_id: assignmentData.team_id,
       raspberry_id: assignmentData.raspberry_id,
-      duration_hours: parseFloat(assignmentData.duration_hours.toFixed(2)) // Präzise Umrechnung
+      duration_hours: parseFloat(assignmentData.duration_hours.toFixed(2))
     };
     
-    // Nur wenn eine Startzeit angegeben wurde, diese hinzufügen
+    // Format date as YYYY-MM-DD HH:MM:SS to avoid timezone issues
     if (assignmentData.start_time) {
-      // Sende Datum direkt ohne Zeitzonenkonvertierung
-      data.start_time = assignmentData.start_time;
+      const d = new Date(assignmentData.start_time);
+      // Format date in a way that keeps it as local time
+      const localDateString = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`;
+      data.start_time = localDateString;
     }
     
-    console.log("Sende Zuweisungsdaten:", data);
+    console.log("Sending assignment data:", data);
     const response = await axiosInstance.post('/admin/assignments', data);
+    return response.data;
+  },
+
+  // Update the deleteAssignment function with the same date formatting
+  deleteAssignment: async (teamId, raspberryId, startTime = null, endTime = null) => {
+    const params = { 
+      team_id: teamId, 
+      raspberry_id: raspberryId 
+    };
+    
+    // Format dates the same way for deletion
+    if (startTime) {
+      const d = new Date(startTime);
+      const localDateString = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`;
+      params.start_time = localDateString;
+    }
+    
+    if (endTime) {
+      const d = new Date(endTime);
+      const localDateString = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`;
+      params.end_time = localDateString;
+    }
+    
+    console.log("Delete parameters:", params);
+    const response = await axiosInstance.delete('/admin/assignments', { params });
     return response.data;
   },
   
@@ -171,21 +198,6 @@ export const adminAPI = {
     return response.data;
   },
   
-  deleteAssignment: async (teamId, raspberryId, startTime = null) => {
-    const params = { 
-      team_id: teamId, 
-      raspberry_id: raspberryId 
-    };
-    
-    // Optional die Startzeit hinzufügen
-    if (startTime) {
-      params.start_time = startTime;
-    }
-    
-    console.log("Delete-Parameter:", params);
-    const response = await axiosInstance.delete('/admin/assignments', { params });
-    return response.data;
-  },
 };
 
 const apiExports = {

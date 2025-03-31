@@ -58,7 +58,8 @@ const AssignmentManagement = () => {
   const [deleteAssignmentData, setDeleteAssignmentData] = useState({
     team_id: null,
     raspberry_id: null,
-    start_time: null
+    start_time: null,
+    end_time: null  // Added end_time to identify assignments uniquely
   });
 
   // Filter-Zustände
@@ -113,35 +114,25 @@ const AssignmentManagement = () => {
         return;
       }
       
-      // Konvertiere Minuten in Stunden für die API - präzisere Umrechnung
+      // Convert minutes to hours for the API - precise conversion
       const durationHours = newAssignmentData.duration_minutes / 60.0;
       
-      console.log("Startzeit vor Senden:", newAssignmentData.start_time);
+      // Create a new Date object from the start_time to ensure consistency
+      const startTime = new Date(newAssignmentData.start_time);
+      console.log("Startzeit vor Senden:", startTime);
       
-      // Startzeit direkt verwenden ohne Konvertierung
       const newAssignment = await adminAPI.createAssignment({
         team_id: newAssignmentData.team_id,
         raspberry_id: newAssignmentData.raspberry_id,
         duration_hours: durationHours,
-        start_time: newAssignmentData.start_time
+        start_time: startTime
       });
       
       console.log("Neue Zuweisung erstellt:", newAssignment);
       
-      // Aktualisiere die Liste der Zuweisungen
-      if (showActiveOnly) {
-        // Nur hinzufügen, wenn die neue Zuweisung aktiv ist
-        const now = new Date();
-        const isActive = new Date(newAssignment.end_time) > now && 
-                       new Date(newAssignment.start_time) <= now;
-                       
-        if (isActive) {
-          setAssignments([...assignments, newAssignment]);
-        }
-      } else {
-        // Immer hinzufügen, wenn alle angezeigt werden
-        setAssignments([...assignments, newAssignment]);
-      }
+      // Refresh the assignments list instead of manually updating it
+      const refreshedAssignments = await adminAPI.getAssignments({ active_only: showActiveOnly });
+      setAssignments(refreshedAssignments);
       
       setNewAssignmentDialog(false);
       setNewAssignmentData({
@@ -173,18 +164,23 @@ const AssignmentManagement = () => {
       
       console.log("Lösche Zuweisung:", deleteAssignmentData);
       
-      // Löschvorgang mit der start_time als Identifikator
+      // Pass all four parameters to uniquely identify the assignment
       await adminAPI.deleteAssignment(
         deleteAssignmentData.team_id, 
         deleteAssignmentData.raspberry_id,
-        deleteAssignmentData.start_time
+        deleteAssignmentData.start_time,
+        deleteAssignmentData.end_time
       );
       
-      // Entferne die gelöschte Zuweisung aus der Liste
-      // Relevante Filter: team_id und raspberry_id genügen
+      // Update the assignments list with more precise filtering
       setAssignments(assignments.filter(assignment => {
-        return !(assignment.team_id === deleteAssignmentData.team_id && 
-                 assignment.raspberry_id === deleteAssignmentData.raspberry_id);
+        // Filter out the exact assignment that was deleted, comparing all properties
+        return !(
+          assignment.team_id === deleteAssignmentData.team_id && 
+          assignment.raspberry_id === deleteAssignmentData.raspberry_id &&
+          assignment.start_time === deleteAssignmentData.start_time &&
+          assignment.end_time === deleteAssignmentData.end_time
+        );
       }));
       
       setDeleteDialog(false);
@@ -204,12 +200,13 @@ const AssignmentManagement = () => {
   };
 
   // Zuweisung zum Löschen vorbereiten
-  const openDeleteDialog = (teamId, raspberryId, startTime) => {
-    console.log("Öffne Löschen-Dialog:", teamId, raspberryId, startTime);
+  const openDeleteDialog = (teamId, raspberryId, startTime, endTime) => {
+    console.log("Öffne Löschen-Dialog:", teamId, raspberryId, startTime, endTime);
     setDeleteAssignmentData({ 
       team_id: teamId, 
       raspberry_id: raspberryId,
-      start_time: startTime
+      start_time: startTime,
+      end_time: endTime
     });
     setDeleteDialog(true);
   };
@@ -450,7 +447,8 @@ const AssignmentManagement = () => {
                       onClick={() => openDeleteDialog(
                         assignment.team_id, 
                         assignment.raspberry_id,
-                        assignment.start_time // Übergebe auch die Startzeit 
+                        assignment.start_time,
+                        assignment.end_time
                       )}
                     >
                       Zuweisung löschen
@@ -614,6 +612,11 @@ const AssignmentManagement = () => {
               {deleteAssignmentData.start_time && (
                 <Typography variant="body2">
                   <strong>Startet am:</strong> {format(new Date(deleteAssignmentData.start_time), 'dd.MM.yyyy HH:mm', { locale: de })}
+                </Typography>
+              )}
+              {deleteAssignmentData.end_time && (
+                <Typography variant="body2">
+                  <strong>Endet am:</strong> {format(new Date(deleteAssignmentData.end_time), 'dd.MM.yyyy HH:mm', { locale: de })}
                 </Typography>
               )}
             </Box>

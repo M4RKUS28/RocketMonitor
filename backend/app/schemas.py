@@ -1,6 +1,7 @@
 from pydantic import BaseModel, EmailStr, Field
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Union
 from datetime import datetime
+
 
 # User Schemas
 class UserBase(BaseModel):
@@ -88,18 +89,32 @@ class RaspberryPi(RaspberryPiBase):
     class Config:
         orm_mode = True
 
-# Assignment Schema
+# Update the TeamRaspberryAssignment model to specify format
 class TeamRaspberryAssignment(BaseModel):
     team_id: int
     raspberry_id: int
     start_time: datetime
     end_time: datetime
 
+    class Config:
+        orm_mode = True
+        json_encoders = {
+            # Use local datetime format instead of ISO
+            datetime: lambda dt: dt.strftime("%Y-%m-%d %H:%M:%S")
+        }
+
+# Update the AssignmentCreate model to better handle dates
 class AssignmentCreate(BaseModel):
     team_id: int
     raspberry_id: int
-    duration_hours: float = 1.0  # Standard: 1 Stunde
-    start_time: Optional[datetime] = None  # Optional: Wenn nicht angegeben, wird die aktuelle Zeit verwendet
+    duration_hours: float = 1.0
+    start_time: Optional[Union[datetime, str]] = None  # Can be either datetime or formatted string
+    
+    class Config:
+        # Ensure we can handle both datetime objects and strings
+        json_encoders = {
+            datetime: lambda dt: dt.strftime("%Y-%m-%d %H:%M:%S")
+        }
 
 # Altitude Data Schemas
 class AltitudeDataBase(BaseModel):

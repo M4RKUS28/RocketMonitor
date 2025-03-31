@@ -20,7 +20,7 @@ router = APIRouter(
 
 
 
-AVERAGE_OF = 24  # Normalisierungsfaktor für die Höhenwerte
+AVERAGE_OF = 20  # Normalisierungsfaktor für die Höhenwerte
 
 
 def calculate_averaged_altitudes(altitudes: List[float], x: int) -> List[float]:

@@ -56,7 +56,7 @@ class DatabaseManager:
         os.makedirs(self.offline_data_path, exist_ok=True)
         
         # Verbindungsstatistiken und Backoff-Konfiguration
-        self.max_reconnect_delay = 300  # 5 Minuten maximale Wartezeit
+        self.max_reconnect_delay = 60  # 1 Minuten maximale Wartezeit
         self.last_connection_attempt = 0  # Zeitpunkt des letzten Verbindungsversuchs
         self._connection_attempts = 1
         self._in_cooldown = False
