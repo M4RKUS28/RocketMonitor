@@ -17,6 +17,7 @@ class UserUpdate(BaseModel):
     email: Optional[EmailStr] = None
     password: Optional[str] = None
     is_active: Optional[bool] = None
+    is_admin: Optional[bool] = None  # Make sure this field exists
     team_id: Optional[int] = None
 
 class User(UserBase):

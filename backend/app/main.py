@@ -51,9 +51,14 @@ async def login_for_access_token(
             headers={"WWW-Authenticate": "Bearer"},
         )
     
+    # Team logins should never have admin privileges regardless of the user object
+    # This ensures team logins can't accidentally get admin rights
+    is_team_login = db.query(models.Team).filter(models.Team.name == form_data.username).first() is not None
+    admin_status = False if is_team_login else user.is_admin
+    
     access_token_expires = timedelta(minutes=auth.ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = auth.create_access_token(
-        data={"sub": user.username, "user_id": user.id, "is_admin": user.is_admin},
+        data={"sub": user.username, "user_id": user.id, "is_admin": admin_status},
         expires_delta=access_token_expires,
     )
     
@@ -62,7 +67,7 @@ async def login_for_access_token(
         "token_type": "bearer",
         "user_id": user.id,
         "username": user.username,
-        "is_admin": user.is_admin,
+        "is_admin": admin_status,  # Use our computed admin_status
         "team_id": user.team_id
     }
 
@@ -96,8 +101,6 @@ async def register_user(user: schemas.UserCreate, db: Session = Depends(get_db))
     db.refresh(new_user)
     
     return new_user
-
-
 
 
 # Root route redirects to the React app

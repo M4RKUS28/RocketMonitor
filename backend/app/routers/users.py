@@ -38,6 +38,9 @@ async def read_user(
         raise HTTPException(status_code=404, detail="Benutzer nicht gefunden")
     return user
 
+# The issue might be in your backend/app/routers/users.py
+# Look for the update_user endpoint and make sure it correctly handles the is_admin field
+
 @router.put("/{user_id}", response_model=schemas.User)
 async def update_user(
     user_id: int,
@@ -54,9 +57,9 @@ async def update_user(
     if db_user is None:
         raise HTTPException(status_code=404, detail="Benutzer nicht gefunden")
     
-    # Aktualisiere die Benutzerdaten
+    # Update user data
     if user_update.username is not None:
-        # Überprüfe, ob der neue Benutzername bereits vergeben ist
+        # Check if new username is already taken
         existing_user = db.query(models.User).filter(
             models.User.username == user_update.username,
             models.User.id != user_id
@@ -66,7 +69,7 @@ async def update_user(
         db_user.username = user_update.username
     
     if user_update.email is not None:
-        # Überprüfe, ob die neue E-Mail bereits vergeben ist
+        # Check if new email is already taken
         existing_user = db.query(models.User).filter(
             models.User.email == user_update.email,
             models.User.id != user_id
@@ -78,11 +81,17 @@ async def update_user(
     if user_update.password is not None:
         db_user.hashed_password = auth.get_password_hash(user_update.password)
     
+    # Only admins can change active status
     if user_update.is_active is not None and current_user.is_admin:
         db_user.is_active = user_update.is_active
     
+    # IMPORTANT: Ensure is_admin is properly handled
+    # Only admins can grant/revoke admin status 
+    if user_update.is_admin is not None and current_user.is_admin:
+        db_user.is_admin = user_update.is_admin
+    
     if user_update.team_id is not None and current_user.is_admin:
-        # Überprüfe, ob das Team existiert
+        # Check if team exists
         team = db.query(models.Team).filter(models.Team.id == user_update.team_id).first()
         if team is None and user_update.team_id != 0:
             raise HTTPException(status_code=404, detail="Team nicht gefunden")

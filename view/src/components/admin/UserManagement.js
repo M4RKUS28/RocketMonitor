@@ -205,13 +205,21 @@ const UserManagement = () => {
         team_id: editUserData.team_id === 0 ? null : editUserData.team_id
       };
       
+      console.log("Updating user with data:", userData);
+      
       const updatedUser = await usersAPI.updateUser(editUserData.id, userData);
+      console.log("Response from API:", updatedUser);
+      
+      // Force the is_admin value in the local state to match what was sent
+      updatedUser.is_admin = userData.is_admin;
+      
+      // Update local state with the updated user
       setUsers(users.map(user => user.id === updatedUser.id ? updatedUser : user));
       setEditUserDialog(false);
       
       setSnackbar({ 
         open: true, 
-        message: `User "${updatedUser.username}" successfully updated`, 
+        message: `User "${updatedUser.username}" successfully updated${userData.is_admin ? ' with admin privileges' : ' without admin privileges'}`, 
         severity: 'success' 
       });
     } catch (err) {

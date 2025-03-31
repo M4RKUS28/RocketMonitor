@@ -40,12 +40,10 @@ def authenticate_user(db: Session, username: str, password: str):
     user = db.query(models.User).filter(models.User.username == username).first()
     
     # Wenn ein Admin-Benutzer gefunden wurde, prüfe dessen Passwort
-    if user and user.is_admin:
-        if verify_password(password, user.hashed_password):
-            return user
-        return False
+    if user and verify_password(password, user.hashed_password):
+        return user
     
-    # Wenn kein Admin gefunden wurde, versuche ein Team zu finden
+    # Wenn kein User gefunden wurde oder das Passwort nicht stimmt, versuche ein Team zu finden
     team = db.query(models.Team).filter(models.Team.name == username).first()
     if not team:
         return False
@@ -61,12 +59,26 @@ def authenticate_user(db: Session, username: str, password: str):
                 username=f"team_{team.id}",
                 email=f"team{team.id}@example.com",  # Platzhalter E-Mail
                 hashed_password="",  # Kein direktes Login mit diesem Benutzer
-                is_admin=False,
+                is_admin=False,  # WICHTIG: Team-Benutzer sind NIE Admins
                 team_id=team.id
             )
             db.add(user)
             db.commit()
             db.refresh(user)
+        else:
+            # WICHTIG: Auch wenn ein existierender Benutzer gefunden wird, 
+            # der Team-Login sollte nie Admin-Rechte haben
+            # Create a temporary user object that's not tied to the DB session
+            temp_user = models.User(
+                id=user.id,
+                username=user.username,
+                email=user.email,
+                hashed_password=user.hashed_password,
+                is_active=user.is_active,
+                is_admin=False,  # Always set team logins to non-admin
+                team_id=user.team_id
+            )
+            return temp_user
         
         return user
     
