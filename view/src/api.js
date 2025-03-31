@@ -152,14 +152,16 @@ export const adminAPI = {
     const data = {
       team_id: assignmentData.team_id,
       raspberry_id: assignmentData.raspberry_id,
-      duration_hours: assignmentData.duration_hours
+      duration_hours: parseFloat(assignmentData.duration_hours.toFixed(2)) // Präzise Umrechnung
     };
     
     // Nur wenn eine Startzeit angegeben wurde, diese hinzufügen
     if (assignmentData.start_time) {
-      data.start_time = assignmentData.start_time.toISOString();
+      // Sende Datum direkt ohne Zeitzonenkonvertierung
+      data.start_time = assignmentData.start_time;
     }
     
+    console.log("Sende Zuweisungsdaten:", data);
     const response = await axiosInstance.post('/admin/assignments', data);
     return response.data;
   },
@@ -169,10 +171,19 @@ export const adminAPI = {
     return response.data;
   },
   
-  deleteAssignment: async (teamId, raspberryId) => {
-    const response = await axiosInstance.delete('/admin/assignments', {
-      params: { team_id: teamId, raspberry_id: raspberryId }
-    });
+  deleteAssignment: async (teamId, raspberryId, startTime = null) => {
+    const params = { 
+      team_id: teamId, 
+      raspberry_id: raspberryId 
+    };
+    
+    // Optional die Startzeit hinzufügen
+    if (startTime) {
+      params.start_time = startTime;
+    }
+    
+    console.log("Delete-Parameter:", params);
+    const response = await axiosInstance.delete('/admin/assignments', { params });
     return response.data;
   },
 };

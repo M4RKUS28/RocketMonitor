@@ -57,7 +57,8 @@ const AssignmentManagement = () => {
   });
   const [deleteAssignmentData, setDeleteAssignmentData] = useState({
     team_id: null,
-    raspberry_id: null
+    raspberry_id: null,
+    start_time: null
   });
 
   // Filter-Zustände
@@ -112,9 +113,12 @@ const AssignmentManagement = () => {
         return;
       }
       
-      // Konvertiere Minuten in Stunden für die API
-      const durationHours = newAssignmentData.duration_minutes / 60;
+      // Konvertiere Minuten in Stunden für die API - präzisere Umrechnung
+      const durationHours = parseFloat((newAssignmentData.duration_minutes / 60).toFixed(2));
       
+      console.log("Startzeit vor Senden:", newAssignmentData.start_time);
+      
+      // Startzeit direkt verwenden ohne Konvertierung
       const newAssignment = await adminAPI.createAssignment({
         team_id: newAssignmentData.team_id,
         raspberry_id: newAssignmentData.raspberry_id,
@@ -122,13 +126,21 @@ const AssignmentManagement = () => {
         start_time: newAssignmentData.start_time
       });
       
+      console.log("Neue Zuweisung erstellt:", newAssignment);
+      
       // Aktualisiere die Liste der Zuweisungen
       if (showActiveOnly) {
-        setAssignments([...assignments, newAssignment]);
+        // Nur hinzufügen, wenn die neue Zuweisung aktiv ist
+        const now = new Date();
+        const isActive = new Date(newAssignment.end_time) > now && 
+                       new Date(newAssignment.start_time) <= now;
+                       
+        if (isActive) {
+          setAssignments([...assignments, newAssignment]);
+        }
       } else {
-        // Falls nicht nur aktive angezeigt werden, lade alle Zuweisungen neu
-        const updatedAssignments = await adminAPI.getAssignments({ active_only: showActiveOnly });
-        setAssignments(updatedAssignments);
+        // Immer hinzufügen, wenn alle angezeigt werden
+        setAssignments([...assignments, newAssignment]);
       }
       
       setNewAssignmentDialog(false);
@@ -148,7 +160,7 @@ const AssignmentManagement = () => {
       console.error('Fehler beim Erstellen der Zuweisung:', err);
       setSnackbar({ 
         open: true, 
-        message: 'Fehler beim Erstellen der Zuweisung. Möglicherweise gibt es bereits eine Zuweisung für diesen Raspberry Pi im angegebenen Zeitraum.', 
+        message: 'Fehler beim Erstellen der Zuweisung: ' + (err.response?.data?.detail || err.message), 
         severity: 'error' 
       });
     }
@@ -159,16 +171,21 @@ const AssignmentManagement = () => {
     try {
       if (!deleteAssignmentData.team_id || !deleteAssignmentData.raspberry_id) return;
       
+      console.log("Lösche Zuweisung:", deleteAssignmentData);
+      
+      // Löschvorgang mit der start_time als Identifikator
       await adminAPI.deleteAssignment(
         deleteAssignmentData.team_id, 
-        deleteAssignmentData.raspberry_id
+        deleteAssignmentData.raspberry_id,
+        deleteAssignmentData.start_time
       );
       
       // Entferne die gelöschte Zuweisung aus der Liste
-      setAssignments(assignments.filter(assignment => 
-        !(assignment.team_id === deleteAssignmentData.team_id && 
-          assignment.raspberry_id === deleteAssignmentData.raspberry_id)
-      ));
+      // Relevante Filter: team_id und raspberry_id genügen
+      setAssignments(assignments.filter(assignment => {
+        return !(assignment.team_id === deleteAssignmentData.team_id && 
+                 assignment.raspberry_id === deleteAssignmentData.raspberry_id);
+      }));
       
       setDeleteDialog(false);
       setSnackbar({ 
@@ -180,15 +197,20 @@ const AssignmentManagement = () => {
       console.error('Fehler beim Löschen der Zuweisung:', err);
       setSnackbar({ 
         open: true, 
-        message: 'Fehler beim Löschen der Zuweisung.', 
+        message: 'Fehler beim Löschen der Zuweisung: ' + (err.response?.data?.detail || err.message), 
         severity: 'error' 
       });
     }
   };
 
   // Zuweisung zum Löschen vorbereiten
-  const openDeleteDialog = (teamId, raspberryId) => {
-    setDeleteAssignmentData({ team_id: teamId, raspberry_id: raspberryId });
+  const openDeleteDialog = (teamId, raspberryId, startTime) => {
+    console.log("Öffne Löschen-Dialog:", teamId, raspberryId, startTime);
+    setDeleteAssignmentData({ 
+      team_id: teamId, 
+      raspberry_id: raspberryId,
+      start_time: startTime
+    });
     setDeleteDialog(true);
   };
 
@@ -395,7 +417,7 @@ const AssignmentManagement = () => {
                           Startet am:
                         </Typography>
                         <Typography variant="body1">
-                          {format(new Date(assignment.start_time), 'PPpp', { locale: de })}
+                          {format(new Date(assignment.start_time), 'dd.MM.yyyy HH:mm', { locale: de })}
                         </Typography>
                       </Box>
                     </Box>
@@ -413,7 +435,7 @@ const AssignmentManagement = () => {
                           Endet am:
                         </Typography>
                         <Typography variant="body1">
-                          {format(new Date(assignment.end_time), 'PPpp', { locale: de })}
+                          {format(new Date(assignment.end_time), 'dd.MM.yyyy HH:mm', { locale: de })}
                         </Typography>
                       </Box>
                     </Box>
@@ -425,7 +447,11 @@ const AssignmentManagement = () => {
                       variant="outlined" 
                       color="error"
                       startIcon={<DeleteIcon />}
-                      onClick={() => openDeleteDialog(assignment.team_id, assignment.raspberry_id)}
+                      onClick={() => openDeleteDialog(
+                        assignment.team_id, 
+                        assignment.raspberry_id,
+                        assignment.start_time // Übergebe auch die Startzeit 
+                      )}
                     >
                       Zuweisung löschen
                     </Button>
@@ -488,11 +514,13 @@ const AssignmentManagement = () => {
             <DateTimePicker
               label="Startzeit"
               value={newAssignmentData.start_time}
-              onChange={(newDateTime) => setNewAssignmentData({ 
-                ...newAssignmentData, 
-                start_time: newDateTime 
-              })}
-              renderInput={(params) => <TextField {...params} fullWidth sx={{ mb: 3 }} />}
+              onChange={(newDateTime) => {
+                console.log("Neue Startzeit ausgewählt:", newDateTime);
+                setNewAssignmentData({ 
+                  ...newAssignmentData, 
+                  start_time: newDateTime 
+                });
+              }}
               slotProps={{
                 textField: { fullWidth: true, sx: { mb: 3 } },
               }}
@@ -534,10 +562,10 @@ const AssignmentManagement = () => {
                 return (
                   <>
                     <Typography variant="body2">
-                      <strong>Startzeit:</strong> {format(startTime, 'PPp', { locale: de })}
+                      <strong>Startzeit:</strong> {format(startTime, 'dd.MM.yyyy HH:mm', { locale: de })}
                     </Typography>
                     <Typography variant="body2">
-                      <strong>Endzeit:</strong> {format(endTime, 'PPp', { locale: de })}
+                      <strong>Endzeit:</strong> {format(endTime, 'dd.MM.yyyy HH:mm', { locale: de })}
                     </Typography>
                     <Typography variant="body2">
                       <strong>Dauer:</strong> {newAssignmentData.duration_minutes} Minuten
@@ -583,6 +611,11 @@ const AssignmentManagement = () => {
               <Typography variant="body2">
                 <strong>Raspberry Pi:</strong> {getRaspberryName(deleteAssignmentData.raspberry_id)}
               </Typography>
+              {deleteAssignmentData.start_time && (
+                <Typography variant="body2">
+                  <strong>Startet am:</strong> {format(new Date(deleteAssignmentData.start_time), 'dd.MM.yyyy HH:mm', { locale: de })}
+                </Typography>
+              )}
             </Box>
           )}
         </DialogContent>

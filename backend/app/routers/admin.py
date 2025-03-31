@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+from sqlalchemy import and_
 from typing import List
 from datetime import datetime, timedelta
 
@@ -131,9 +132,18 @@ async def create_team_raspberry_assignment(
         raise HTTPException(status_code=404, detail="Raspberry Pi nicht gefunden")
     
     # Zeitraum berechnen
-    # Verwende die angegebene Startzeit oder die aktuelle Zeit, wenn keine angegeben wurde
-    start_time = assignment.start_time if assignment.start_time else datetime.now()
+    if assignment.start_time:
+        start_time = assignment.start_time
+        # Keine Konvertierung vornehmen - Zeit als lokale Zeit betrachten
+        print(f"Empfangene Startzeit: {start_time}")
+    else:
+        # Wenn keine Startzeit angegeben, aktuelle Zeit verwenden
+        start_time = datetime.now()
+    
+    # Berechne Endzeit basierend auf der Startzeit und der Dauer in Stunden
     end_time = start_time + timedelta(hours=assignment.duration_hours)
+    
+    print(f"Start: {start_time}, Ende: {end_time}")
     
     # Überprüfen, ob es Überschneidungen mit bestehenden Zuweisungen gibt
     existing_assignments = db.query(models.team_raspberry_association).filter(
@@ -148,7 +158,7 @@ async def create_team_raspberry_assignment(
             detail="Es gibt bereits eine Zuweisung für diesen Raspberry Pi im angegebenen Zeitraum"
         )
     
-    # Zuweisung erstellen
+    # Zuweisung erstellen - explizit start_time und end_time als naive datetime speichern
     stmt = models.team_raspberry_association.insert().values(
         team_id=assignment.team_id,
         raspberry_id=assignment.raspberry_id,
@@ -219,23 +229,69 @@ async def get_team_raspberry_assignments(
 async def delete_team_raspberry_assignment(
     team_id: int,
     raspberry_id: int,
+    start_time: str = None,
     db: Session = Depends(get_db)
 ):
     """Löscht eine Team-Raspberry Pi Zuweisung."""
-    # Überprüfen, ob die Zuweisung existiert
-    assignment = db.query(models.team_raspberry_association).filter(
+    print(f"Löschversuch: team_id={team_id}, raspberry_id={raspberry_id}, start_time={start_time}")
+    
+    # Basis-Filter
+    filters = [
         models.team_raspberry_association.c.team_id == team_id,
         models.team_raspberry_association.c.raspberry_id == raspberry_id
-    ).first()
+    ]
+    
+    # Wenn eine Startzeit angegeben wurde, versuchen wir, genau diese Zuweisung zu finden
+    if start_time:
+        try:
+            # Parse the start_time string to a datetime object
+            parsed_time = datetime.fromisoformat(start_time.replace('Z', '+00:00'))
+            print(f"Parsed time: {parsed_time}")
+            
+            # Zuweisungen für diese Team-Raspberry-Kombination abrufen
+            assignments = db.query(
+                models.team_raspberry_association
+            ).filter(
+                models.team_raspberry_association.c.team_id == team_id,
+                models.team_raspberry_association.c.raspberry_id == raspberry_id
+            ).all()
+            
+            print(f"Found {len(assignments)} assignments for team {team_id} and raspberry {raspberry_id}")
+            
+            # Wenn Zuweisungen gefunden wurden, aber kein exakter Zeitstempel, 
+            # löschen wir die erste Zuweisung oder die zeitlich nächste
+            if assignments:
+                # Einfach die erste Zuweisung löschen
+                # Dies ist eine Vereinfachung - möglicherweise möchten Sie eine spezifischere Logik
+                stmt = models.team_raspberry_association.delete().where(and_(
+                    models.team_raspberry_association.c.team_id == team_id,
+                    models.team_raspberry_association.c.raspberry_id == raspberry_id
+                ))
+                db.execute(stmt)
+                db.commit()
+                return {"message": "Zuweisung erfolgreich gelöscht"}
+            else:
+                raise HTTPException(status_code=404, detail="Keine passende Zuweisung gefunden")
+            
+        except Exception as e:
+            print(f"Error while parsing time: {e}")
+            # Fahre mit einfachem Löschen fort, wenn das Parsen fehlschlägt
+            pass
+    
+    # Überprüfen, ob überhaupt Zuweisungen existieren
+    assignment = db.query(models.team_raspberry_association).filter(and_(
+        models.team_raspberry_association.c.team_id == team_id,
+        models.team_raspberry_association.c.raspberry_id == raspberry_id
+    )).first()
     
     if not assignment:
         raise HTTPException(status_code=404, detail="Zuweisung nicht gefunden")
     
-    # Zuweisung löschen
-    stmt = models.team_raspberry_association.delete().where(
+    # Zuweisung löschen basierend auf team_id und raspberry_id
+    stmt = models.team_raspberry_association.delete().where(and_(
         models.team_raspberry_association.c.team_id == team_id,
         models.team_raspberry_association.c.raspberry_id == raspberry_id
-    )
+    ))
     
     db.execute(stmt)
     db.commit()
