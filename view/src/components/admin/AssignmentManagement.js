@@ -114,7 +114,7 @@ const AssignmentManagement = () => {
       }
       
       // Konvertiere Minuten in Stunden für die API - präzisere Umrechnung
-      const durationHours = parseFloat((newAssignmentData.duration_minutes / 60).toFixed(2));
+      const durationHours = newAssignmentData.duration_minutes / 60.0;
       
       console.log("Startzeit vor Senden:", newAssignmentData.start_time);
       
