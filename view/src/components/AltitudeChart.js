@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { 
   Box, 
   Paper, 
@@ -45,6 +45,10 @@ const AltitudeChart = ({ teamId, title, startTime: initialStartTime, endTime: in
   const [error, setError] = useState(null);
   const [lastRefreshed, setLastRefreshed] = useState(new Date());
   const [autoRefresh, setAutoRefresh] = useState(true);
+  const [hiddenDatasets, setHiddenDatasets] = useState({});
+  
+  // Ref to keep track of the chart instance
+  const chartRef = useRef(null);
 
   // Zeitbereich bestimmen - nutze benutzerdefinierte Werte oder Standard (24h)
   const getTimeRange = useCallback(() => {
@@ -111,7 +115,7 @@ const AltitudeChart = ({ teamId, title, startTime: initialStartTime, endTime: in
     }
 
     // Erstelle ein einheitliches Set von Labels für die x-Achse
-    const labels = chartData.timestamps.map(timestamp => 
+    const allLabels = chartData.timestamps.map(timestamp => 
       format(new Date(timestamp), 'HH:mm', { locale: de })
     );
 
@@ -148,7 +152,7 @@ const AltitudeChart = ({ teamId, title, startTime: initialStartTime, endTime: in
       
       // Erstelle ein Array der gleichen Länge wie labels, aber mit null-Werten
       // außer an den Stellen, die dieser Gruppe entsprechen
-      const groupData = new Array(labels.length).fill(null);
+      const groupData = new Array(allLabels.length).fill(null);
       
       // Fülle nur die Indizes dieser Gruppe mit Werten
       group.indices.forEach((originalIndex, i) => {
@@ -156,7 +160,7 @@ const AltitudeChart = ({ teamId, title, startTime: initialStartTime, endTime: in
       });
       
       return {
-        label: `Gruppe ${groupId}`,
+        label: `Start ${groupId}`,
         data: groupData,
         fill: true,
         backgroundColor: colorSet.backgroundColor,
@@ -165,14 +169,73 @@ const AltitudeChart = ({ teamId, title, startTime: initialStartTime, endTime: in
         pointRadius: 1,
         pointBackgroundColor: colorSet.borderColor,
         tension: 0.4,
-        spanGaps: false // Verbinde keine Punkte über Lücken hinweg
+        spanGaps: false, // Verbinde keine Punkte über Lücken hinweg
+        hidden: hiddenDatasets[groupId] || false // Use the hidden state
+      };
+    });
+
+    // Filter out labels that don't have any visible data points
+    const visibleLabels = [];
+    const hasVisibleDataAtIndex = Array(allLabels.length).fill(false);
+
+    // Check which indices have visible data
+    datasets.forEach(dataset => {
+      if (!dataset.hidden) {
+        dataset.data.forEach((value, index) => {
+          if (value !== null) {
+            hasVisibleDataAtIndex[index] = true;
+          }
+        });
+      }
+    });
+
+    // Create filtered labels based on visible data
+    allLabels.forEach((label, index) => {
+      if (hasVisibleDataAtIndex[index]) {
+        visibleLabels.push(label);
+      }
+    });
+
+    // Create filtered datasets with only visible points
+    const filteredDatasets = datasets.map(dataset => {
+      if (dataset.hidden) return dataset;
+      
+      const filteredData = [];
+      //let dataIndex = 0;
+      
+      hasVisibleDataAtIndex.forEach((isVisible, index) => {
+        if (isVisible) {
+          filteredData.push(dataset.data[index]);
+         // dataIndex++;
+        }
+      });
+      
+      return {
+        ...dataset,
+        data: filteredData
       };
     });
 
     return {
-      labels,
-      datasets
+      labels: visibleLabels,
+      datasets: filteredDatasets
     };
+  };
+
+  // Handle legend click to update hidden datasets state
+  const handleLegendClick = (event, legendItem) => {
+    const index = legendItem.datasetIndex;
+    const chartInstance = chartRef.current;
+    
+    if (chartInstance && chartInstance.data && chartInstance.data.datasets) {
+      const datasetLabel = chartInstance.data.datasets[index].label;
+      const groupId = datasetLabel.replace('Start ', '');
+      
+      setHiddenDatasets(prev => ({
+        ...prev,
+        [groupId]: !prev[groupId]
+      }));
+    }
   };
 
   const chartOptions = {
@@ -184,6 +247,7 @@ const AltitudeChart = ({ teamId, title, startTime: initialStartTime, endTime: in
         labels: {
           color: isDarkMode ? '#fff' : '#333',
         },
+        onClick: handleLegendClick,
       },
       tooltip: {
         mode: 'index',
@@ -249,9 +313,11 @@ const AltitudeChart = ({ teamId, title, startTime: initialStartTime, endTime: in
     
     let maxHeight = 0;
     data.datasets.forEach(dataset => {
-      const maxInDataset = Math.max(...dataset.data.filter(v => v !== null));
-      if (maxInDataset > maxHeight) {
-        maxHeight = maxInDataset;
+      if (!dataset.hidden) {
+        const maxInDataset = Math.max(...dataset.data.filter(v => v !== null));
+        if (maxInDataset > maxHeight) {
+          maxHeight = maxInDataset;
+        }
       }
     });
     
@@ -262,6 +328,12 @@ const AltitudeChart = ({ teamId, title, startTime: initialStartTime, endTime: in
   const getNumberOfGroups = () => {
     if (!chartData || !chartData.event_groups) return 0;
     return new Set(chartData.event_groups).size;
+  };
+
+  // Anzahl der aktiven Gruppen
+  const getNumberOfActiveGroups = () => {
+    if (!data || !data.datasets) return 0;
+    return data.datasets.filter(dataset => !dataset.hidden).length;
   };
 
   return (
@@ -329,7 +401,11 @@ const AltitudeChart = ({ teamId, title, startTime: initialStartTime, endTime: in
             }}
           >
             <Box flexGrow={1}>
-              <Line data={data} options={chartOptions} />
+              <Line 
+                data={data} 
+                options={chartOptions} 
+                ref={chartRef}
+              />
             </Box>
           </Paper>
 
@@ -371,10 +447,10 @@ const AltitudeChart = ({ teamId, title, startTime: initialStartTime, endTime: in
               
               <Box sx={{ mt: 3 }}>
                 <Typography variant="subtitle2" sx={{ opacity: 0.8 }}>
-                  Messgruppen
+                  Raketenstarts
                 </Typography>
                 <Typography variant="h5" sx={{ mt: 1 }}>
-                  {getNumberOfGroups()}
+                  {getNumberOfGroups()} gesamt / {getNumberOfActiveGroups()} aktiv
                 </Typography>
               </Box>
               
@@ -405,6 +481,5 @@ const AltitudeChart = ({ teamId, title, startTime: initialStartTime, endTime: in
     </Box>
   );
 };
-
 
 export default AltitudeChart;

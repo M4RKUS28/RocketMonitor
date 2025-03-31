@@ -99,6 +99,7 @@ class AssignmentCreate(BaseModel):
     team_id: int
     raspberry_id: int
     duration_hours: float = 1.0  # Standard: 1 Stunde
+    start_time: Optional[datetime] = None  # Optional: Wenn nicht angegeben, wird die aktuelle Zeit verwendet
 
 # Altitude Data Schemas
 class AltitudeDataBase(BaseModel):

@@ -214,7 +214,7 @@ const RaspberryManagement = () => {
           mb: 4, 
           borderRadius: 3,
           background: isDarkMode 
-            ? 'linear-gradient(135deg, #f50057 0%, #c51162 100%)' 
+            ? 'linear-gradient(135deg,rgb(94, 86, 88) 0%,rgb(141, 19, 74) 100%)' 
             : 'linear-gradient(135deg, #ff4081 0%, #f50057 100%)',
           color: 'white',
           display: 'flex',

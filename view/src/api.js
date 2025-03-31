@@ -148,7 +148,19 @@ export const adminAPI = {
   
   // Team-Raspberry Pi Zuweisungen
   createAssignment: async (assignmentData) => {
-    const response = await axiosInstance.post('/admin/assignments', assignmentData);
+    // Prüfen, ob eine Startzeit angegeben wurde
+    const data = {
+      team_id: assignmentData.team_id,
+      raspberry_id: assignmentData.raspberry_id,
+      duration_hours: assignmentData.duration_hours
+    };
+    
+    // Nur wenn eine Startzeit angegeben wurde, diese hinzufügen
+    if (assignmentData.start_time) {
+      data.start_time = assignmentData.start_time.toISOString();
+    }
+    
+    const response = await axiosInstance.post('/admin/assignments', data);
     return response.data;
   },
   

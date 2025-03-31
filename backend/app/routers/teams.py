@@ -52,7 +52,8 @@ async def read_team(
         farewell_points=team.farewell_points,
         admin_id=team.admin_id,
         members=team.members,
-        total_points=total_points
+        total_points=total_points,
+        points_visible=team.points_visible
     )
     
     return team_detail
@@ -125,7 +126,10 @@ async def update_team(
     
     if team_update.farewell_points is not None:
         db_team.farewell_points = team_update.farewell_points
-    
+
+    if team_update.points_visible is not None:
+        db_team.points_visible = team_update.points_visible
+
     db.commit()
     db.refresh(db_team)
     return db_team

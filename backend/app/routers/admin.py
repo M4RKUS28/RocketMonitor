@@ -131,7 +131,8 @@ async def create_team_raspberry_assignment(
         raise HTTPException(status_code=404, detail="Raspberry Pi nicht gefunden")
     
     # Zeitraum berechnen
-    start_time = datetime.now()
+    # Verwende die angegebene Startzeit oder die aktuelle Zeit, wenn keine angegeben wurde
+    start_time = assignment.start_time if assignment.start_time else datetime.now()
     end_time = start_time + timedelta(hours=assignment.duration_hours)
     
     # Überprüfen, ob es Überschneidungen mit bestehenden Zuweisungen gibt

@@ -23,14 +23,17 @@ import {
   InputLabel,
   Select
 } from '@mui/material';
+import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
+import { DateTimePicker } from '@mui/x-date-pickers/DateTimePicker';
+import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
+import { de } from 'date-fns/locale';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 import LinkIcon from '@mui/icons-material/Link';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import { useTheme } from '../../contexts/ThemeContext';
 import { adminAPI, teamsAPI } from '../../api';
-import { format, addHours } from 'date-fns';
-import { de } from 'date-fns/locale';
+import { format, addMinutes } from 'date-fns';
 
 const AssignmentManagement = () => {
   const { isDarkMode } = useTheme();
@@ -49,7 +52,8 @@ const AssignmentManagement = () => {
   const [newAssignmentData, setNewAssignmentData] = useState({
     team_id: '',
     raspberry_id: '',
-    duration_hours: 1.0
+    duration_minutes: 60,
+    start_time: new Date()
   });
   const [deleteAssignmentData, setDeleteAssignmentData] = useState({
     team_id: null,
@@ -99,7 +103,7 @@ const AssignmentManagement = () => {
         return;
       }
       
-      if (newAssignmentData.duration_hours <= 0) {
+      if (newAssignmentData.duration_minutes <= 0) {
         setSnackbar({ 
           open: true, 
           message: 'Die Dauer muss größer als 0 sein', 
@@ -108,7 +112,15 @@ const AssignmentManagement = () => {
         return;
       }
       
-      const newAssignment = await adminAPI.createAssignment(newAssignmentData);
+      // Konvertiere Minuten in Stunden für die API
+      const durationHours = newAssignmentData.duration_minutes / 60;
+      
+      const newAssignment = await adminAPI.createAssignment({
+        team_id: newAssignmentData.team_id,
+        raspberry_id: newAssignmentData.raspberry_id,
+        duration_hours: durationHours,
+        start_time: newAssignmentData.start_time
+      });
       
       // Aktualisiere die Liste der Zuweisungen
       if (showActiveOnly) {
@@ -123,7 +135,8 @@ const AssignmentManagement = () => {
       setNewAssignmentData({
         team_id: '',
         raspberry_id: '',
-        duration_hours: 1.0
+        duration_minutes: 60,
+        start_time: new Date()
       });
       
       setSnackbar({ 
@@ -200,6 +213,17 @@ const AssignmentManagement = () => {
   // Toggle für aktive Zuweisungen Filter
   const toggleActiveFilter = async () => {
     setShowActiveOnly(!showActiveOnly);
+  };
+
+  // Vorschau der Zuweisungszeiten berechnen
+  const calculateAssignmentTimes = () => {
+    const startTime = newAssignmentData.start_time || new Date();
+    const endTime = addMinutes(new Date(startTime), newAssignmentData.duration_minutes);
+    
+    return {
+      startTime,
+      endTime
+    };
   };
 
   if (loading) {
@@ -460,19 +484,34 @@ const AssignmentManagement = () => {
             </Select>
           </FormControl>
           
+          <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={de}>
+            <DateTimePicker
+              label="Startzeit"
+              value={newAssignmentData.start_time}
+              onChange={(newDateTime) => setNewAssignmentData({ 
+                ...newAssignmentData, 
+                start_time: newDateTime 
+              })}
+              renderInput={(params) => <TextField {...params} fullWidth sx={{ mb: 3 }} />}
+              slotProps={{
+                textField: { fullWidth: true, sx: { mb: 3 } },
+              }}
+            />
+          </LocalizationProvider>
+          
           <TextField
-            id="duration-hours"
-            label="Dauer (Stunden)"
+            id="duration-minutes"
+            label="Dauer (Minuten)"
             type="number"
             fullWidth
             variant="outlined"
-            value={newAssignmentData.duration_hours}
-            onChange={(e) => setNewAssignmentData({ ...newAssignmentData, duration_hours: parseFloat(e.target.value) })}
-            InputProps={{ inputProps: { min: 0.5, step: 0.5 } }}
+            value={newAssignmentData.duration_minutes}
+            onChange={(e) => setNewAssignmentData({ ...newAssignmentData, duration_minutes: parseInt(e.target.value) })}
+            InputProps={{ inputProps: { min: 1, step: 1 } }}
             sx={{ mb: 3 }}
           />
           
-          {newAssignmentData.team_id && newAssignmentData.raspberry_id && newAssignmentData.duration_hours > 0 && (
+          {newAssignmentData.team_id && newAssignmentData.raspberry_id && newAssignmentData.duration_minutes > 0 && (
             <Box 
               sx={{ 
                 p: 2, 
@@ -489,9 +528,23 @@ const AssignmentManagement = () => {
               <Typography variant="body2">
                 <strong>Raspberry Pi:</strong> {getRaspberryName(newAssignmentData.raspberry_id)}
               </Typography>
-              <Typography variant="body2">
-                <strong>Zeitraum:</strong> {format(new Date(), 'PPp', { locale: de })} bis {format(addHours(new Date(), newAssignmentData.duration_hours), 'PPp', { locale: de })}
-              </Typography>
+              
+              {(() => {
+                const { startTime, endTime } = calculateAssignmentTimes();
+                return (
+                  <>
+                    <Typography variant="body2">
+                      <strong>Startzeit:</strong> {format(startTime, 'PPp', { locale: de })}
+                    </Typography>
+                    <Typography variant="body2">
+                      <strong>Endzeit:</strong> {format(endTime, 'PPp', { locale: de })}
+                    </Typography>
+                    <Typography variant="body2">
+                      <strong>Dauer:</strong> {newAssignmentData.duration_minutes} Minuten
+                    </Typography>
+                  </>
+                );
+              })()}
             </Box>
           )}
         </DialogContent>

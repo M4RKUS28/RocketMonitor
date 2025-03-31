@@ -8,6 +8,8 @@ from typing import List
 from . import models, schemas, auth
 from .database import engine, get_db
 from .routers import users, teams, altitude_data, admin
+from fastapi.staticfiles import StaticFiles
+
 
 # Datenbanktabellen erstellen
 models.Base.metadata.create_all(bind=engine)
@@ -33,6 +35,10 @@ app.include_router(users.router)
 app.include_router(teams.router)
 app.include_router(altitude_data.router)
 app.include_router(admin.router)
+
+
+app.mount("/", StaticFiles(directory="static"), name="static")
+
 
 @app.get("/")
 async def root():
@@ -72,6 +78,9 @@ async def read_users_me(current_user: models.User = Depends(auth.get_current_act
 
 @app.post("/register", response_model=schemas.User)
 async def register_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
+
+    raise HTTPException(status_code=400, detail="Funktion deaktiviert")
+
     # Überprüfen, ob der Benutzername bereits existiert
     db_user = db.query(models.User).filter(models.User.username == user.username).first()
     if db_user:

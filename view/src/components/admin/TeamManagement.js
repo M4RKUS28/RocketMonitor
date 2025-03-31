@@ -248,8 +248,23 @@ const TeamManagement = () => {
   // Punktesichtbarkeit umschalten
   const handleTogglePointsVisibility = async (teamId, visible) => {
     try {
-      const updatedTeam = await teamsAPI.updateTeam(teamId, { points_visible: visible });
-      setTeams(teams.map(team => team.id === updatedTeam.id ? updatedTeam : team));
+      // Suche das Team in der lokalen State
+      const team = teams.find(t => t.id === teamId);
+      if (!team) {
+        console.error(`Team mit ID ${teamId} nicht gefunden`);
+        return;
+      }
+      
+      // Aktualisiere das Team auf dem Server
+      const updatedTeam = await teamsAPI.updateTeam(teamId, { 
+        points_visible: visible 
+      });
+      
+      // Aktualisiere die lokale State mit dem neuen Team
+      setTeams(teams.map(team => 
+        team.id === updatedTeam.id ? updatedTeam : team
+      ));
+      
       setSnackbar({ 
         open: true, 
         message: `Punktesichtbarkeit für Team "${updatedTeam.name}" ${visible ? 'aktiviert' : 'deaktiviert'}`, 

@@ -7,19 +7,19 @@ import {
   Paper, 
   CircularProgress, 
   Alert,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
+  //FormControl,
+  //InputLabel,
+  //Select,
+  //MenuItem,
   Grid,
-  TextField,
-  Button,
+  //TextField,
+  //Button,
   Divider
 } from '@mui/material';
-import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
-import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
-import { DateTimePicker } from '@mui/x-date-pickers/DateTimePicker';
-import { de } from 'date-fns/locale';
+//import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
+//import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
+//import { DateTimePicker } from '@mui/x-date-pickers/DateTimePicker';
+//import { de } from 'date-fns/locale';
 import TerrainIcon from '@mui/icons-material/Terrain';
 import { useTheme } from '../../contexts/ThemeContext';
 import AltitudeChart from '../AltitudeChart';
@@ -33,14 +33,14 @@ const TeamChart = () => {
   const [error, setError] = useState(null);
   
   // Zeitraum-Zustände
-  const [startTime, setStartTime] = useState(() => {
+  /*const [startTime, setStartTime] = useState(() => {
     const date = new Date();
     date.setHours(date.getHours() - 24); // 24 Stunden zurück
     return date;
   });
   const [endTime, setEndTime] = useState(new Date());
   const [timeRangeChanged, setTimeRangeChanged] = useState(false);
-  
+  */
   // Daten laden
   useEffect(() => {
     const fetchTeam = async () => {
@@ -66,7 +66,7 @@ const TeamChart = () => {
   }, [teamId]);
 
   // Zeitspannen zur Auswahl
-  const timeRanges = [
+  /*const timeRanges = [
     { label: 'Letzte Stunde', value: 1 },
     { label: 'Letzte 3 Stunden', value: 3 },
     { label: 'Letzte 6 Stunden', value: 6 },
@@ -104,7 +104,7 @@ const TeamChart = () => {
     setStartTime(start);
     setEndTime(end);
     setTimeRangeChanged(true);
-  };
+  };*/
 
   if (loading) {
     return (
@@ -257,9 +257,9 @@ const TeamChart = () => {
       >
         <AltitudeChart 
           teamId={parseInt(teamId)} 
-          startTime={startTime}
-          endTime={endTime}
-          key={`${startTime}-${endTime}-${timeRangeChanged}`}
+          //startTime={startTime}
+          //endTime={endTime}
+          //key={`${startTime}-${endTime}-${timeRangeChanged}`}
           title={`Höhenverlauf für Team: ${team.name}`}
         />
       </Paper>

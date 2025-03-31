@@ -82,8 +82,8 @@ const AdminDashboard = () => {
           mb: 4, 
           borderRadius: 3,
           background: isDarkMode 
-            ? 'linear-gradient(135deg, #f44336 0%, #b71c1c 100%)' 
-            : 'linear-gradient(135deg, #ff5252 0%, #d32f2f 100%)',
+            ? 'linear-gradient(135deg,rgb(238, 136, 216) 0%,rgb(129, 50, 103) 100%)' 
+            : 'linear-gradient(135deg,rgb(105, 105, 105) 0%,rgb(48, 8, 8) 100%)',
           color: 'white',
         }}
       >
@@ -427,7 +427,7 @@ const AdminDashboard = () => {
                 : '0 4px 20px rgba(245,0,87,0.2)',
             }}
           >
-            Neuen Raspberry Pi hinzufügen
+            Raspberry Pi hinzufügen
           </Button>
         </Grid>
         <Grid item xs={12} sm={6} md={3}>
