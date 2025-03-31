@@ -96,6 +96,18 @@ export const usersAPI = {
     const response = await axiosInstance.delete(`/users/${userId}`);
     return response.data;
   },
+  
+  // New function to register a user (for admins creating new users)
+  register: async (userData) => {
+    const response = await axiosInstance.post('/register', userData);
+    return response.data;
+  },
+  
+  // Alias for register to make the API more intuitive
+  createUser: async (userData) => {
+    return usersAPI.register(userData);
+  },
+  
 };
 
 // Höhendaten
@@ -197,8 +209,9 @@ export const adminAPI = {
     const response = await axiosInstance.get('/admin/assignments', { params: filters });
     return response.data;
   },
-  
-};
+}
+
+
 
 const apiExports = {
   auth: authAPI,

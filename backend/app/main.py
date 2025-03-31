@@ -72,9 +72,6 @@ async def read_users_me(current_user: models.User = Depends(auth.get_current_act
 
 @app.post("/register", response_model=schemas.User)
 async def register_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
-
-    raise HTTPException(status_code=400, detail="Funktion deaktiviert")
-
     # Überprüfen, ob der Benutzername bereits existiert
     db_user = db.query(models.User).filter(models.User.username == user.username).first()
     if db_user:

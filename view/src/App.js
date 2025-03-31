@@ -12,6 +12,9 @@ import TeamManagement from './components/admin/TeamManagement';
 import RaspberryManagement from './components/admin/RaspberryManagement';
 import AssignmentManagement from './components/admin/AssignmentManagement';
 import TeamChart from './components/admin/TeamChart';
+import UserManagement from './components/admin/UserManagement';
+
+
 
 // PrivateRoute Komponente für geschützte Routen
 const PrivateRoute = ({ element, requiresAdmin = false }) => {
@@ -68,6 +71,10 @@ function AppRoutes() {
       <Route 
         path="/admin/chart/:teamId" 
         element={<PrivateRoute element={<TeamChart />} requiresAdmin />} 
+      />
+      <Route 
+        path="/admin/users" 
+        element={<PrivateRoute element={<UserManagement />} requiresAdmin />} 
       />
       
       {/* Standardumleitung */}
