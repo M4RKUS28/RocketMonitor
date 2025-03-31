@@ -19,8 +19,8 @@ class Config:
             "name": "RaspberryPi-1",   # Name des Geräts - muss mit Frontend übereinstimmen
         },
         "sensor": {
-            "sample_rate_hz": 5,        # Abtastrate in Hz
-            "i2c_address": 0x76,        # Standard I2C-Adresse für BMP280
+            "sample_rate_hz": 50,        # Abtastrate in Hz
+            "i2c_address": 118,        # Standard I2C-Adresse für BMP280
             "sea_level_pressure": 1013.25  # Standarddruck auf Meereshöhe in hPa
         },
         "detection": {
@@ -47,7 +47,7 @@ class Config:
         }
     }
     
-    def __init__(self, config_path="/home/markus/RocketMonitor/pi/src/config.json"):
+    def __init__(self, config_path="/etc/altitude_monitor/config.json"):
         """Initialisiert die Konfiguration."""
         self.config_path = config_path
         self.config = self._load_config()
