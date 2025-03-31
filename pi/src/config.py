@@ -47,7 +47,7 @@ class Config:
         }
     }
     
-    def __init__(self, config_path="config.json"):
+    def __init__(self, config_path="/home/markus/RocketMonitor/pi/src/config.json"):
         """Initialisiert die Konfiguration."""
         self.config_path = config_path
         self.config = self._load_config()
