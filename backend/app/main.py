@@ -37,12 +37,6 @@ app.include_router(altitude_data.router)
 app.include_router(admin.router)
 
 
-app.mount("/", StaticFiles(directory="static"), name="static")
-
-
-@app.get("/")
-async def root():
-    return {"message": "Willkommen bei der Altitude Tracking API"}
 
 @app.post("/token", response_model=schemas.Token)
 async def login_for_access_token(
@@ -105,3 +99,21 @@ async def register_user(user: schemas.UserCreate, db: Session = Depends(get_db))
     db.refresh(new_user)
     
     return new_user
+
+
+
+
+# Root route redirects to the React app
+@app.get("/", include_in_schema=False)
+async def root():
+    return RedirectResponse(url="/static/index.html")
+
+# Mount static files for the React app
+app.mount("/app", StaticFiles(directory="static", html=True), name="static")
+
+# Fallback route for client-side routing
+@app.get("/app/{full_path:path}", include_in_schema=False)
+async def serve_react(full_path: str):
+    # This catches any request to /app/* and returns the React index.html
+    # allowing client-side routing to work
+    return HTMLResponse(open("static/index.html").read())
