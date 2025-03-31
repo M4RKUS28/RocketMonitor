@@ -20,6 +20,48 @@ router = APIRouter(
 
 
 
+AVERAGE_OF = 24  # Normalisierungsfaktor für die Höhenwerte
+
+
+def calculate_averaged_altitudes(altitudes: List[float], x: int) -> List[float]:
+    """
+    Berechnet für jeden Wert in der Liste den Durchschnitt des Wertes und der nächsten (x-1) Werte.
+    Für die letzten (x-1) Werte, wo nicht mehr genug Werte für einen vollständigen Block von x Werten übrig sind,
+    werden so viele Werte verwendet, wie möglich.
+    
+    Beispiel:
+    Bei Eingabe [1, 2, 0, 2, 4, 0] und x=2 wäre das Ergebnis:
+    [1.5, 1, 1, 3, 2, 0]
+    
+    Args:
+        altitudes: Liste von Höhenwerten
+        x: Anzahl der Werte, die für die Durchschnittsbildung verwendet werden sollen
+        
+    Returns:
+        Liste der gemittelten Höhenwerte mit gleicher Länge wie die Eingabeliste
+    """
+    # Eingabevalidierung
+    if not altitudes:
+        return []
+    
+    if x <= 0:
+        raise ValueError("Die Blockgröße muss positiv sein")
+    
+    averaged_altitudes = []
+    n = len(altitudes)
+    
+    for i in range(n):
+        # Berechne Bereich für den gleitenden Durchschnitt
+        # Nehme so viele Werte, wie möglich, aber maximal x
+        end_idx = min(i + x, n)
+        chunk = altitudes[i:end_idx]
+        
+        # Berechne Durchschnitt
+        averaged_altitudes.append(sum(chunk) / len(chunk))
+    
+    return averaged_altitudes
+
+
 @router.get("/chart/{team_id}", response_model=schemas.ChartData)
 async def get_chart_data(
     team_id: int,
@@ -45,7 +87,7 @@ async def get_chart_data(
     if start_time is None:
         start_time = datetime.now() - timedelta(days=1)
     if end_time is None:
-        end_time = datetime.now()
+        end_time = datetime.now()  + timedelta(days=1)
     
     # Stellen Sie sicher, dass start_time und end_time als naive Datetimes vorliegen
     # (entferne Zeitzoneninformationen, wenn vorhanden)
@@ -85,6 +127,10 @@ async def get_chart_data(
     timestamps = [data.timestamp for data in altitude_data]
     altitudes = [data.altitude for data in altitude_data]
     event_groups = [data.event_group for data in altitude_data]  # Neue Eigenschaft
+
+
+    # Durchschnittswerte berechnen (hier mit x=2 als Beispiel)
+    altitudes = calculate_averaged_altitudes(altitudes, AVERAGE_OF)
     
     # Berechne die maximale Höhe
     max_altitude = max(altitudes) if altitudes else 0

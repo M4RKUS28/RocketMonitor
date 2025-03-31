@@ -2,9 +2,10 @@
 # -*- coding: utf-8 -*-
 
 """
-Enhanced DatabaseManager with persistent Raspberry Pi ID caching:
+Enhanced DatabaseManager with persistent Raspberry Pi ID caching and improved connection handling:
 - Once a Raspberry Pi ID is found, it's permanently cached and always used
 - Only if an ID has never been found will the system continue querying
+- Better connection backoff and error handling to prevent 'Aborted connects'
 """
 
 import os
@@ -54,6 +55,13 @@ class DatabaseManager:
         self.max_offline_files = config.get("storage", "max_offline_files")
         os.makedirs(self.offline_data_path, exist_ok=True)
         
+        # Verbindungsstatistiken und Backoff-Konfiguration
+        self.max_reconnect_delay = 300  # 5 Minuten maximale Wartezeit
+        self.last_connection_attempt = 0  # Zeitpunkt des letzten Verbindungsversuchs
+        self._connection_attempts = 1
+        self._in_cooldown = False
+        self._cooldown_until = 0
+        
         # Connection pool statt individueller Verbindungen
         try:
             self.cnx_pool = self._create_connection_pool()
@@ -75,11 +83,6 @@ class DatabaseManager:
         # Erstelle Datenbank und Tabelle, wenn sie nicht existieren
         self._ensure_database_and_table()
         
-        # Exponential Backoff für Reconnect-Versuche
-        self.max_reconnect_delay = 300  # 5 Minuten maximale Wartezeit
-        self.last_connection_attempt = 0  # Zeitpunkt des letzten Verbindungsversuchs
-        self._connection_attempts = 1
-        
         # Einmalige initiale Abfrage der Raspberry Pi ID beim Start
         if self._check_connection():
             self._get_raspberry_pi_id()
@@ -90,10 +93,19 @@ class DatabaseManager:
     def _create_connection_pool(self, pool_size=3):
         """Erstellt einen Connection Pool für effizientere Verbindungsverwaltung."""
         try:
+            # Erweiterte Poolkonfiguration für bessere Fehlertoleranz
+            pool_config = {
+                **self.db_config,
+                "pool_size": pool_size,
+                "pool_reset_session": True,
+                "connect_timeout": 10,
+                "autocommit": False,  # Wir möchten Transaktionen manuell steuern
+                "get_warnings": True
+            }
+            
             pool = pooling.MySQLConnectionPool(
                 pool_name="altitude_pool",
-                pool_size=pool_size,
-                **self.db_config
+                **pool_config
             )
             logger.info(f"Connection Pool mit {pool_size} Verbindungen erstellt")
             return pool
@@ -102,12 +114,28 @@ class DatabaseManager:
             return None
     
     def _connect(self) -> bool:
-        """Stellt eine Verbindung zur Datenbank her."""
-        # Exponential Backoff für wiederholte Verbindungsversuche
+        """
+        Stellt eine Verbindung zur Datenbank her mit verbessertem Retry-Mechanismus.
+        Implementiert einen echten Cooldown nach zu vielen fehlgeschlagenen Versuchen.
+        """
         current_time = time.time()
+        
+        # Prüfen, ob wir uns im Cooldown befinden
+        if self._in_cooldown:
+            if current_time < self._cooldown_until:
+                remaining = self._cooldown_until - current_time
+                logger.debug(f"In Cooldown-Phase. Nächster Verbindungsversuch in {remaining:.1f}s möglich")
+                return False
+            else:
+                # Cooldown beendet, Zähler zurücksetzen
+                logger.info("Cooldown beendet, setze Verbindungsversuche zurück")
+                self._in_cooldown = False
+                self._connection_attempts = 1
+        
+        # Exponentieller Backoff für wiederholte Verbindungsversuche
         time_since_last_attempt = current_time - self.last_connection_attempt
         
-        # Berechne die Wartezeit basierend auf der Anzahl bisheriger Versuche
+        # Berechne Wartezeit basierend auf der Anzahl bisheriger Versuche
         wait_time = min(
             self.reconnect_delay * (2 ** (self._connection_attempts - 1)),
             self.max_reconnect_delay
@@ -115,7 +143,7 @@ class DatabaseManager:
         
         # Wenn nicht genug Zeit seit dem letzten Versuch vergangen ist, warte
         if time_since_last_attempt < wait_time:
-            logger.info(f"Zu viele Verbindungsversuche, warte {wait_time - time_since_last_attempt:.1f}s")
+            logger.debug(f"Zu früh für neuen Verbindungsversuch, warte {wait_time - time_since_last_attempt:.1f}s")
             return False
             
         self.last_connection_attempt = current_time
@@ -126,9 +154,11 @@ class DatabaseManager:
                 logger.info(f"Verbinde zur Datenbank (Versuch {self._connection_attempts}/{self.reconnect_attempts})...")
                 
                 if self._connection_attempts > self.reconnect_attempts:
-                    logger.error("Maximale Anzahl an Verbindungsversuchen erreicht")
-                    # Setze den Zähler zurück und erhöhe die Wartezeit
-                    self._connection_attempts = 1
+                    # Aktiviere Cooldown-Modus für längere Pause
+                    cooldown_duration = 300  # 5 Minuten
+                    self._in_cooldown = True
+                    self._cooldown_until = current_time + cooldown_duration
+                    logger.warning(f"Maximale Anzahl an Verbindungsversuchen erreicht. Cooldown für {cooldown_duration} Sekunden")
                     return False
                     
                 self.connection = self.cnx_pool.get_connection()
@@ -152,8 +182,11 @@ class DatabaseManager:
                 logger.info(f"Verbinde zur Datenbank ohne Pool (Versuch {self._connection_attempts}/{self.reconnect_attempts})...")
                 
                 if self._connection_attempts > self.reconnect_attempts:
-                    logger.error("Maximale Anzahl an Verbindungsversuchen erreicht")
-                    self._connection_attempts = 1
+                    # Aktiviere Cooldown-Modus für längere Pause
+                    cooldown_duration = 300  # 5 Minuten
+                    self._in_cooldown = True
+                    self._cooldown_until = current_time + cooldown_duration
+                    logger.warning(f"Maximale Anzahl an Verbindungsversuchen erreicht. Cooldown für {cooldown_duration} Sekunden")
                     return False
                     
                 self.connection = mysql.connector.connect(**self.db_config)
@@ -176,9 +209,15 @@ class DatabaseManager:
         config_without_db = self.db_config.copy()
         db_name = config_without_db.pop("database")
         
+        # Angepasste Konfiguration mit höherem Timeout
+        connection_config = {
+            **config_without_db,
+            "connect_timeout": 10,  # Höherer Timeout für Admin-Operationen
+        }
+        
         try:
             # Verwende einen separaten Verbindungskontext nur für diesen Vorgang
-            conn = mysql.connector.connect(**config_without_db)
+            conn = mysql.connector.connect(**connection_config)
             cursor = conn.cursor()
             
             # Datenbank erstellen, falls nicht vorhanden
@@ -196,7 +235,8 @@ class DatabaseManager:
                 event_group VARCHAR(36) NOT NULL,
                 raspberry_pi_id INT NOT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                INDEX (raspberry_pi_id)
+                INDEX (raspberry_pi_id),
+                INDEX (timestamp)
             )
             """)
             
@@ -288,6 +328,9 @@ class DatabaseManager:
                 # Markiere die Aufgabe als erledigt
                 self.save_queue.task_done()
                 
+                # Kurze Pause, um Ressourcenverbrauch zu reduzieren
+                time.sleep(0.1)
+                
             except Exception as e:
                 logger.error(f"Fehler bei der Verarbeitung der Speicherungsqueue: {e}")
                 time.sleep(1)  # Vermeidet Busy-Waiting bei Fehlern
@@ -315,6 +358,10 @@ class DatabaseManager:
                         raspberry_id
                     ))
             
+            if not values:
+                logger.warning("Keine gültigen Datenpunkte zum Speichern vorhanden")
+                return
+            
             # Daten speichern
             self.cursor.executemany(sql, values)
             self.connection.commit()
@@ -327,7 +374,7 @@ class DatabaseManager:
             self._save_offline(data_list, event_group)
         finally:
             # Prüfe, ob die Verbindung weiterhin besteht
-            if self.connection and not self.connection.is_connected():
+            if self.connection and hasattr(self.connection, "is_connected") and not self.connection.is_connected():
                 logger.warning("Verbindung unterbrochen, schließe Ressourcen")
                 if self.cursor:
                     try:
@@ -358,6 +405,10 @@ class DatabaseManager:
                         "raspberry_name": self.raspberry_name
                     })
             
+            if not serializable_data:
+                logger.warning("Keine gültigen Datenpunkte zum Offline-Speichern vorhanden")
+                return
+                
             # Dateiname basierend auf event_group
             filename = os.path.join(self.offline_data_path, f"{event_group}.json")
             
@@ -405,7 +456,7 @@ class DatabaseManager:
                 
                 # Nur synchronisieren, wenn eine gültige Raspberry Pi ID gefunden wurde
                 if raspberry_id is None or not self._check_connection():
-                    logger.info("Keine Raspberry Pi ID oder keine Datenbankverbindung für Offline-Synchronisation verfügbar")
+                    logger.debug("Keine Raspberry Pi ID oder keine Datenbankverbindung für Offline-Synchronisation verfügbar")
                     continue
                 
                 # Liste alle Offline-Dateien auf
@@ -419,6 +470,7 @@ class DatabaseManager:
                 logger.info(f"{len(files)} Offline-Dateien für Synchronisation gefunden")
                 
                 # Verarbeite jede Datei
+                success_count = 0
                 for file_path in files:
                     try:
                         with open(file_path, 'r') as file:
@@ -427,6 +479,12 @@ class DatabaseManager:
                         # Prüfe, ob die Daten für diesen Raspberry Pi sind
                         if len(data) > 0 and data[0].get("raspberry_name") != self.raspberry_name:
                             logger.warning(f"Datei {file_path} enthält Daten für anderen Raspberry Pi ('{data[0].get('raspberry_name')}'), überspringe")
+                            continue
+                        
+                        # Nur synchonisieren, wenn Daten vorhanden
+                        if not data:
+                            logger.warning(f"Leere Datei gefunden: {file_path}, wird gelöscht")
+                            os.remove(file_path)
                             continue
                         
                         # SQL für Mehrfach-Insert
@@ -454,11 +512,15 @@ class DatabaseManager:
                         
                         # Lösche die Datei nach erfolgreicher Synchronisation
                         os.remove(file_path)
+                        success_count += 1
                         
                         logger.info(f"Offline-Datei erfolgreich synchronisiert und gelöscht: {file_path}")
                         
                     except Exception as e:
                         logger.error(f"Fehler bei der Synchronisation von {file_path}: {e}")
+                
+                if success_count > 0:
+                    logger.info(f"{success_count} von {len(files)} Offline-Dateien erfolgreich synchronisiert")
                 
             except Exception as e:
                 logger.error(f"Fehler bei der Offline-Synchronisation: {e}")
@@ -471,7 +533,7 @@ class DatabaseManager:
             except:
                 pass
             
-        if self.connection and self.connection.is_connected():
+        if self.connection and hasattr(self.connection, "is_connected") and self.connection.is_connected():
             try:
                 self.connection.close()
             except:

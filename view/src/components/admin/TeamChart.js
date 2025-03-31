@@ -170,7 +170,7 @@ const TeamChart = () => {
       >
         <Typography variant="h6" gutterBottom>Zeitraum auswählen</Typography>
         <Divider sx={{ mb: 3 }} />
-        
+        {/*
         <Grid container spacing={3}>
           <Grid item xs={12} md={4}>
             <FormControl fullWidth>
@@ -218,7 +218,6 @@ const TeamChart = () => {
             </Grid>
           </LocalizationProvider>
         </Grid>
-        
         <Box 
           sx={{ 
             mt: 3, 
@@ -242,7 +241,9 @@ const TeamChart = () => {
             Aktualisieren
           </Button>
         </Box>
+         */}
       </Paper>
+
 
       <Paper 
         elevation={3} 

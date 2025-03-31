@@ -9,8 +9,7 @@ import {
   CardContent,
   Chip,
   Tooltip,
-  IconButton,
-  Divider
+  IconButton
 } from '@mui/material';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import AutorenewIcon from '@mui/icons-material/Autorenew';
@@ -163,7 +162,7 @@ const AltitudeChart = ({ teamId, title, startTime: initialStartTime, endTime: in
         backgroundColor: colorSet.backgroundColor,
         borderColor: colorSet.borderColor,
         borderWidth: 2,
-        pointRadius: 3,
+        pointRadius: 1,
         pointBackgroundColor: colorSet.borderColor,
         tension: 0.4,
         spanGaps: false // Verbinde keine Punkte über Lücken hinweg
@@ -320,7 +319,7 @@ const AltitudeChart = ({ teamId, title, startTime: initialStartTime, endTime: in
             sx={{ 
               p: 3, 
               flexGrow: 1, 
-              height: '400px', 
+              height: '520px', 
               display: 'flex', 
               flexDirection: 'column',
               borderRadius: 3,
@@ -406,5 +405,6 @@ const AltitudeChart = ({ teamId, title, startTime: initialStartTime, endTime: in
     </Box>
   );
 };
+
 
 export default AltitudeChart;
