@@ -39,10 +39,14 @@ const Login = () => {
     
     try {
       const success = await login(username, password);
-      
       if (success) {
         // Weiterleitung zur Hauptseite nach erfolgreichem Login
-        navigate('/dashboard');
+        const isAdmin = success.is_admin;
+        if(isAdmin) {
+          navigate('/admin');
+        } else {
+          navigate('/dashboard');
+        }
       } else {
         setError('Login fehlgeschlagen. Bitte überprüfen Sie Ihre Anmeldedaten.');
       }
