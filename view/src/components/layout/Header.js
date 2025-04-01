@@ -74,7 +74,8 @@ const Header = ({ handleDrawerToggle, isAdmin }) => {
       <Toolbar 
         sx={{ 
           justifyContent: 'space-between',
-          minHeight: { xs: 64, md: 70 }
+          minHeight: { xs: 64, md: 70 },
+          px: { xs: 1, sm: 2 } // Smaller padding on mobile to give more space
         }}
       >
         {/* Left side - Menu button on mobile and logo */}
@@ -84,7 +85,12 @@ const Header = ({ handleDrawerToggle, isAdmin }) => {
             aria-label="open drawer"
             edge="start"
             onClick={handleDrawerToggle}
-            sx={{ mr: 2, display: { md: 'none' } }}
+            sx={{ 
+              mr: 1, 
+              display: { md: 'none' },
+              position: 'relative', // Ensure proper stacking context
+              zIndex: 1200, // Higher than AppBar but lower than drawer
+            }}
           >
             <MenuIcon />
           </IconButton>

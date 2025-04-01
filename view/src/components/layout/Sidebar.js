@@ -70,7 +70,12 @@ const Sidebar = ({ mobileOpen, handleDrawerToggle, isAdmin, drawerWidth = 240 })
 
   // Drawer-Inhalt
   const drawer = (
-    <Box sx={{ overflowX: 'hidden' }}>
+    <Box sx={{ 
+      overflowX: 'hidden',
+      height: '100%',
+      display: 'flex',
+      flexDirection: 'column'
+    }}>
       {/* Logo und Titel */}
       <Box 
         sx={{ 
@@ -78,6 +83,7 @@ const Sidebar = ({ mobileOpen, handleDrawerToggle, isAdmin, drawerWidth = 240 })
           flexDirection: 'column',
           alignItems: 'center',
           py: 2,
+          mt: { xs: 7, md: 0 }, // Add top margin on mobile to account for AppBar
           backgroundColor: muiTheme.palette.mode === 'dark' 
             ? 'rgba(255, 255, 255, 0.05)' 
             : 'rgba(0, 0, 0, 0.02)'
@@ -106,7 +112,7 @@ const Sidebar = ({ mobileOpen, handleDrawerToggle, isAdmin, drawerWidth = 240 })
       <Divider />
       
       {/* Menüliste */}
-      <List sx={{ pt: 1 }}>
+      <List sx={{ pt: 1, flexGrow: 1 }}>
         {menuItems.map((item) => (
           <ListItem key={item.text} disablePadding>
             <ListItemButton
@@ -182,7 +188,8 @@ const Sidebar = ({ mobileOpen, handleDrawerToggle, isAdmin, drawerWidth = 240 })
           '& .MuiDrawer-paper': { 
             boxSizing: 'border-box', 
             width: drawerWidth,
-            borderRight: `1px solid ${muiTheme.palette.divider}`
+            borderRight: `1px solid ${muiTheme.palette.divider}`,
+            zIndex: muiTheme.zIndex.drawer + 2, // Higher z-index to appear above AppBar
           },
         }}
       >

@@ -40,7 +40,8 @@ const Layout = ({ children }) => {
           width: { md: `calc(100% - ${240}px)` },
           minHeight: '100vh',
           bgcolor: 'background.default',
-          pt: { xs: 8, md: 9 },
+          pt: { xs: 8, md: 9 }, // Slightly increased padding top for mobile view
+          overflowX: 'hidden',  // Prevent horizontal scrolling
         }}
       >
         {children}
