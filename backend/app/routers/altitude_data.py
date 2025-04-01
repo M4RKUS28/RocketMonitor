@@ -13,7 +13,7 @@ from .. import models, schemas, auth
 from ..database import get_db
 
 router = APIRouter(
-    prefix="/altitude",
+    prefix="/api/altitude",
     tags=["altitude"],
     responses={404: {"description": "Not found"}},
 )

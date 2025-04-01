@@ -6,10 +6,6 @@ services:
     container_name: backend_service
     build: .
     ports:
-      - "8000:8000"
+      - "8800:8800"
     environment:
-      DB_HOST: db
-      DB_USER: altitude_user
-      DB_PASSWORD: your_secure_password
-      DB_NAME: altitude_data
-      DB_PORT: 3306
+      DB_PASSWORD: ${DB_PASSWORD}

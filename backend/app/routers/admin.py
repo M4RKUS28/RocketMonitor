@@ -8,7 +8,7 @@ from .. import models, schemas, auth
 from ..database import get_db
 
 router = APIRouter(
-    prefix="/admin",
+    prefix="/api/admin",
     tags=["admin"],
     responses={404: {"description": "Not found"}},
     dependencies=[Depends(auth.get_current_admin_user)]  # Alle Endpoints erfordern Admin-Rechte

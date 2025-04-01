@@ -18,7 +18,7 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 24 Stunden
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 # OAuth2 mit Password Flow konfigurieren
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/token")
 
 def verify_password(plain_password, hashed_password):
     """Überprüft, ob das eingegebene Passwort mit dem Hash übereinstimmt."""

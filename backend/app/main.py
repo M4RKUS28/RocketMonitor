@@ -1,5 +1,6 @@
 from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from datetime import timedelta
@@ -16,10 +17,10 @@ models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Altitude Tracking API")
 
-# CORS Konfiguration
+#CORS Konfiguration
 origins = [
     "http://localhost:3000",  # Frontend-URL
-    "http://localhost:8000",
+    "https://georgslauf.m4rkus28.de:443",
 ]
 
 app.add_middleware(
@@ -38,7 +39,7 @@ app.include_router(admin.router)
 
 
 
-@app.post("/token", response_model=schemas.Token)
+@app.post("/api/token", response_model=schemas.Token)
 async def login_for_access_token(
     form_data: OAuth2PasswordRequestForm = Depends(),
     db: Session = Depends(get_db)
@@ -71,11 +72,11 @@ async def login_for_access_token(
         "team_id": user.team_id
     }
 
-@app.get("/me", response_model=schemas.User)
+@app.get("/api/me", response_model=schemas.User)
 async def read_users_me(current_user: models.User = Depends(auth.get_current_active_user)):
     return current_user
 
-@app.post("/register", response_model=schemas.User)
+@app.post("/api/register", response_model=schemas.User)
 async def register_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
     # Überprüfen, ob der Benutzername bereits existiert
     db_user = db.query(models.User).filter(models.User.username == user.username).first()
@@ -103,17 +104,20 @@ async def register_user(user: schemas.UserCreate, db: Session = Depends(get_db))
     return new_user
 
 
-# Root route redirects to the React app
+# Mount static files for the React app's assets (JS, CSS, images, etc.)
+app.mount("/static", StaticFiles(directory="/app/static/static"), name="static_assets")
+
+# Serve the index.html for the root path
 @app.get("/", include_in_schema=False)
-async def root():
-    return RedirectResponse(url="/static/index.html")
+async def serve_root():
+    return FileResponse("/app/static/index.html")
 
-# Mount static files for the React app
-app.mount("/app", StaticFiles(directory="static", html=True), name="static")
-
-# Fallback route for client-side routing
-@app.get("/app/{full_path:path}", include_in_schema=False)
-async def serve_react(full_path: str):
-    # This catches any request to /app/* and returns the React index.html
-    # allowing client-side routing to work
-    return HTMLResponse(open("static/index.html").read())
+# Serve the index.html for any unmatched routes to support React router
+@app.get("/{full_path:path}", include_in_schema=False)
+async def serve_spa(full_path: str):
+    # Exclude API paths to avoid conflicts
+    if full_path.startswith("api/") or full_path.startswith("docs") or full_path.startswith("openapi.json"):
+        raise HTTPException(status_code=404, detail="Not found")
+    
+    # Return the React index.html for client-side routing
+    return FileResponse("/app/static/index.html")
