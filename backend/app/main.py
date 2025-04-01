@@ -33,11 +33,10 @@ app.add_middleware(
 )
 
 # Router einbinden
-app.include_router(users.router, prefix="/api")
-app.include_router(teams.router, prefix="/api")
-app.include_router(altitude_data.router, prefix="/api")
-app.include_router(admin.router, prefix="/api")
-
+app.include_router(users.router)
+app.include_router(teams.router)
+app.include_router(altitude_data.router)
+app.include_router(admin.router)
 
 
 @app.post("/api/token", response_model=schemas.Token)
@@ -103,31 +102,3 @@ async def register_user(user: schemas.UserCreate, db: Session = Depends(get_db))
     db.refresh(new_user)
     
     return new_user
-
-
-# Mount static files for the React app's assets (JS, CSS, images, etc.)
-app.mount("/static", StaticFiles(directory="/app/static/static"), name="static_assets")
-
-# Serve the index.html for the root path
-@app.get("/", include_in_schema=False)
-async def serve_root():
-    return FileResponse("/app/static/index.html")
-
-# Serve the index.html for any unmatched routes to support React router
-@app.get("/{full_path:path}", include_in_schema=False)
-async def serve_spa(request: Request, full_path: str):
-    # Log to help diagnose
-    print(f"Catch-all route handling: {full_path}")
-    
-    # Only exclude API-specific paths
-    if full_path == "api" or full_path.startswith("api/") or full_path == "docs" or full_path == "openapi.json":
-        raise HTTPException(status_code=404, detail="Not found")
-    
-    # Verify file exists
-    index_path = "/app/static/index.html"
-    if not os.path.exists(index_path):
-        print(f"Error: Index file not found at {index_path}")
-        raise HTTPException(status_code=500, detail="Index file not found")
-        
-    # Return the React index.html
-    return FileResponse(index_path)
