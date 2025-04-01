@@ -1,4 +1,5 @@
-from fastapi import FastAPI, Depends, HTTPException, status
+import os
+from fastapi import FastAPI, Depends, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.security import OAuth2PasswordRequestForm
@@ -19,7 +20,7 @@ app = FastAPI(title="Altitude Tracking API")
 
 #CORS Konfiguration
 origins = [
-    "http://localhost:3000",  # Frontend-URL
+    "http://localhost:8800",
     "https://georgslauf.m4rkus28.de:443",
 ]
 
@@ -32,10 +33,10 @@ app.add_middleware(
 )
 
 # Router einbinden
-app.include_router(users.router)
-app.include_router(teams.router)
-app.include_router(altitude_data.router)
-app.include_router(admin.router)
+app.include_router(users.router, prefix="/api")
+app.include_router(teams.router, prefix="/api")
+app.include_router(altitude_data.router, prefix="/api")
+app.include_router(admin.router, prefix="/api")
 
 
 
@@ -114,10 +115,19 @@ async def serve_root():
 
 # Serve the index.html for any unmatched routes to support React router
 @app.get("/{full_path:path}", include_in_schema=False)
-async def serve_spa(full_path: str):
-    # Exclude API paths to avoid conflicts
-    if full_path.startswith("api/") or full_path.startswith("docs") or full_path.startswith("openapi.json"):
+async def serve_spa(request: Request, full_path: str):
+    # Log to help diagnose
+    print(f"Catch-all route handling: {full_path}")
+    
+    # Only exclude API-specific paths
+    if full_path == "api" or full_path.startswith("api/") or full_path == "docs" or full_path == "openapi.json":
         raise HTTPException(status_code=404, detail="Not found")
     
-    # Return the React index.html for client-side routing
-    return FileResponse("/app/static/index.html")
+    # Verify file exists
+    index_path = "/app/static/index.html"
+    if not os.path.exists(index_path):
+        print(f"Error: Index file not found at {index_path}")
+        raise HTTPException(status_code=500, detail="Index file not found")
+        
+    # Return the React index.html
+    return FileResponse(index_path)

@@ -4,9 +4,7 @@ import axios from 'axios';
 const API_URL = '/api'; //'http://localhost:8000';
 
 // Axios-Instanz mit Basis-URL
-const axiosInstance = axios.create({
-  baseURL: API_URL,
-});
+const axiosInstance = axios.create({ baseURL: API_URL });
 
 // Request-Interceptor zur Hinzufügung des Authorization-Headers
 axiosInstance.interceptors.request.use(
@@ -27,12 +25,12 @@ export const authAPI = {
     formData.append('username', username);
     formData.append('password', password);
     
-    const response = await axios.post(`${API_URL}/token`, formData);
+    const response = await axiosInstance.post(`/token`, formData);
     return response.data;
   },
   
   register: async (userData) => {
-    const response = await axios.post(`${API_URL}/register`, userData);
+    const response = await axiosInstance.post(`/register`, userData);
     return response.data;
   },
   

@@ -6,7 +6,7 @@ from .. import models, schemas, auth
 from ..database import get_db
 
 router = APIRouter(
-    prefix="/api/users",
+    prefix="/users",
     tags=["users"],
     responses={404: {"description": "Not found"}},
 )
