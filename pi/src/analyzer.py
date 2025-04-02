@@ -93,7 +93,7 @@ class AltitudeAnalyzer:
         # Hole Referenzdaten für den Vergleich (vor X Sekunden)
         comparison_data = self.ring_buffer.get_last_n_seconds(self.comparison_window)
         
-        if not comparison_data:
+        if not comparison_data or len(comparison_data) == 0:
             # Auch ohne Vergleichsdaten: Falls aufzeichnend, füge Daten hinzu
             if self.recording:
                 self.recording_buffer.append(current_data)
