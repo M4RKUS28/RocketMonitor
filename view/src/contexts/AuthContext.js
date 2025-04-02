@@ -79,10 +79,10 @@ export const AuthProvider = ({ children }) => {
       });
       
       setIsAuthenticated(true);
-      return true;
+      return {"success": true, "is_admin": data.is_admin};
     } catch (error) {
       console.error('Login fehlgeschlagen:', error);
-      return false;
+      return {"success": false};
     } finally {
       setLoading(false);
     }

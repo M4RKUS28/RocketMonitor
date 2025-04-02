@@ -88,7 +88,7 @@ export const authAPI = {
 export const teamsAPI = {
   getAllTeams: async () => {
     try {
-      const response = await axiosInstance.get('/teams');
+      const response = await axiosInstance.get('/teams/');
       // Ensure we return an array even if response is unexpected
       return Array.isArray(response.data) ? response.data : [];
     } catch (error) {
@@ -108,7 +108,7 @@ export const teamsAPI = {
   
   createTeam: async (teamData) => {
     try {
-      const response = await axiosInstance.post('/teams', teamData);
+      const response = await axiosInstance.post('/teams/', teamData);
       return response.data;
     } catch (error) {
       handleApiError(error, null, 'Failed to create team');
@@ -151,7 +151,7 @@ export const teamsAPI = {
 export const usersAPI = {
   getAllUsers: async () => {
     try {
-      const response = await axiosInstance.get('/users');
+      const response = await axiosInstance.get('/users/');
       // Ensure we return an array even if response is unexpected
       return Array.isArray(response.data) ? response.data : [];
     } catch (error) {

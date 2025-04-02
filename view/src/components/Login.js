@@ -39,9 +39,11 @@ const Login = () => {
     
     try {
       const success = await login(username, password);
-      if (success) {
+      if (success && success.success) {
         // Weiterleitung zur Hauptseite nach erfolgreichem Login
         const isAdmin = success.is_admin;
+        console.log("struct:", success);
+        console.log("isAdmin:", isAdmin);
         if(isAdmin) {
           navigate('/admin');
         } else {
