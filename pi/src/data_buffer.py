@@ -62,6 +62,9 @@ class RingBuffer:
         if not self.buffer:
             return []
         
+        if not self.buffer or len(self.buffer) < 5:  # Mindestgröße für sinnvolle Vergleiche
+            return []
+        
         # Aktuelle Zeit als Referenz
         current_time = datetime.now()
         

@@ -38,6 +38,7 @@ import { format, addMinutes } from 'date-fns';
 const AssignmentManagement = () => {
   const { isDarkMode } = useTheme();
   const [assignments, setAssignments] = useState([]);
+  const [allAssignments, setAllAssignments] = useState([]); // Store all assignments
   const [teams, setTeams] = useState([]);
   const [raspberryPis, setRaspberryPis] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -59,11 +60,25 @@ const AssignmentManagement = () => {
     team_id: null,
     raspberry_id: null,
     start_time: null,
-    end_time: null  // Added end_time to identify assignments uniquely
+    end_time: null
   });
 
   // Filter-Zustände
   const [showActiveOnly, setShowActiveOnly] = useState(true);
+
+  // Prüfen, ob eine Zuweisung aktiv ist
+  const isAssignmentActive = (assignment) => {
+    const now = new Date();
+    return new Date(assignment.end_time) > now && new Date(assignment.start_time) <= now;
+  };
+
+  // Filter assignments based on active status
+  const filterAssignments = () => {
+    if (!showActiveOnly) {
+      return allAssignments;
+    }
+    return allAssignments.filter(assignment => isAssignmentActive(assignment));
+  };
 
   // Daten laden
   useEffect(() => {
@@ -72,16 +87,23 @@ const AssignmentManagement = () => {
         setLoading(true);
         setError(null);
         
-        // Daten parallel laden
+        // Daten parallel laden - always get all assignments
         const [teamsData, raspberryData, assignmentsData] = await Promise.all([
           teamsAPI.getAllTeams(),
           adminAPI.getAllRaspberryPis(),
-          adminAPI.getAssignments({ active_only: showActiveOnly })
+          adminAPI.getAssignments({ active_only: false }) // Always get all assignments
         ]);
         
         setTeams(teamsData);
         setRaspberryPis(raspberryData);
-        setAssignments(assignmentsData);
+        setAllAssignments(assignmentsData); // Store all assignments
+        
+        // Apply filter
+        setAssignments(
+          showActiveOnly 
+            ? assignmentsData.filter(assignment => isAssignmentActive(assignment))
+            : assignmentsData
+        );
       } catch (err) {
         console.error('Fehler beim Laden der Daten:', err);
         setError('Die Daten konnten nicht geladen werden. Bitte versuchen Sie es später erneut.');
@@ -91,7 +113,12 @@ const AssignmentManagement = () => {
     };
 
     fetchData();
-  }, [showActiveOnly]);
+  }, []); // Only fetch data on component mount
+
+  // Update displayed assignments when filter changes
+  useEffect(() => {
+    setAssignments(filterAssignments());
+  }, [showActiveOnly, allAssignments]);
 
   // Neue Zuweisung erstellen
   const handleCreateAssignment = async () => {
@@ -130,9 +157,9 @@ const AssignmentManagement = () => {
       
       console.log("Neue Zuweisung erstellt:", newAssignment);
       
-      // Refresh the assignments list instead of manually updating it
-      const refreshedAssignments = await adminAPI.getAssignments({ active_only: showActiveOnly });
-      setAssignments(refreshedAssignments);
+      // Get all assignments
+      const refreshedAssignments = await adminAPI.getAssignments({ active_only: false });
+      setAllAssignments(refreshedAssignments);
       
       setNewAssignmentDialog(false);
       setNewAssignmentData({
@@ -172,9 +199,8 @@ const AssignmentManagement = () => {
         deleteAssignmentData.end_time
       );
       
-      // Update the assignments list with more precise filtering
-      setAssignments(assignments.filter(assignment => {
-        // Filter out the exact assignment that was deleted, comparing all properties
+      // Update the all assignments list
+      setAllAssignments(allAssignments.filter(assignment => {
         return !(
           assignment.team_id === deleteAssignmentData.team_id && 
           assignment.raspberry_id === deleteAssignmentData.raspberry_id &&
@@ -223,14 +249,8 @@ const AssignmentManagement = () => {
     return raspberry ? raspberry.name : `Raspberry ID: ${raspberryId}`;
   };
 
-  // Prüfen, ob eine Zuweisung aktiv ist
-  const isAssignmentActive = (assignment) => {
-    const now = new Date();
-    return new Date(assignment.end_time) > now && new Date(assignment.start_time) <= now;
-  };
-
   // Toggle für aktive Zuweisungen Filter
-  const toggleActiveFilter = async () => {
+  const toggleActiveFilter = () => {
     setShowActiveOnly(!showActiveOnly);
   };
 

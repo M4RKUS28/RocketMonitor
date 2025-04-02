@@ -28,6 +28,9 @@ class AltitudeAnalyzer:
         self.stabilization_time = config.get("detection", "stabilization_time_seconds")
         self.expected_sample_rate = config.get("sensor", "sample_rate_hz")
 
+        self.initialized = False
+        self.min_samples_for_comparison = int(self.comparison_window * self.expected_sample_rate * 0.5)  # Mindestens 50% der erwarteten Samples
+
         # Status für Höhenänderungserkennung
         self.recording = False
         self.last_significant_change = None
@@ -92,6 +95,17 @@ class AltitudeAnalyzer:
         
         # Hole Referenzdaten für den Vergleich (vor X Sekunden)
         comparison_data = self.ring_buffer.get_last_n_seconds(self.comparison_window)
+
+        # Initialisierungsphase - Warte bis genügend Daten vorliegen
+        if not self.initialized:
+            valid_altitudes = [d["altitude"] for d in comparison_data if d["altitude"] is not None]
+            if len(valid_altitudes) >= self.min_samples_for_comparison:
+                self.initialized = True
+                logger.info(f"Höhenanalysator initialisiert mit {len(valid_altitudes)} Datenpunkten")
+            else:
+                # Noch in der Initialisierungsphase, keine Auswertung durchführen
+                logger.debug(f"Initialisierung: {len(valid_altitudes)}/{self.min_samples_for_comparison} Datenpunkte")
+                return False, None
         
         if not comparison_data or len(comparison_data) == 0:
             # Auch ohne Vergleichsdaten: Falls aufzeichnend, füge Daten hinzu
