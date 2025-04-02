@@ -99,7 +99,7 @@ class SensorReader:
                         pressure_oversampling: Literal[1, 2, 4, 8, 16] = 16,
                         temperature_standby: Literal[
                             #0.5, 62.5,
-                            10, 20, 62, 125, 250, 500, 1000, 2000, 4000] = 62,
+                            10, 20, 62, 125, 250, 500, 1000, 2000, 4000] = 20,
                         iir_filter: int = 2):
         """
         Konfiguriert den BMP280-Sensor mit detaillierten Einstellungen.
