@@ -18,3 +18,8 @@ WantedBy=multi-user.target
 
 # sudo systemctl restart altitude-monitor.service
 # journalctl -u altitude-monitor.service -f
+# It should be placed in /etc/systemd/system/altitude-monitor.service
+# clone repo
+# change paths & user in service file
+# create venv
+# install requs
