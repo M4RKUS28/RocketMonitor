@@ -41,9 +41,12 @@ OVERSCAN_OPTIONS = {
 
 # Standby Zeit Optionen
 STANDBY_OPTIONS = {
-    125: adafruit_bmp280.STANDBY_TC_125,
-    250: adafruit_bmp280.STANDBY_TC_250,
-    500: adafruit_bmp280.STANDBY_TC_500,
+      10: adafruit_bmp280.STANDBY_TC_10,
+      20: adafruit_bmp280.STANDBY_TC_20,
+      62: adafruit_bmp280.STANDBY_TC_62_5,
+     125: adafruit_bmp280.STANDBY_TC_125,
+     250: adafruit_bmp280.STANDBY_TC_250,
+     500: adafruit_bmp280.STANDBY_TC_500,
     1000: adafruit_bmp280.STANDBY_TC_1000,
 }
 
@@ -96,7 +99,7 @@ class SensorReader:
                         pressure_oversampling: Literal[1, 2, 4, 8, 16] = 16,
                         temperature_standby: Literal[
                             #0.5, 62.5,
-                            125, 250, 500, 1000, 2000, 4000] = 500,
+                            10, 20, 62, 125, 250, 500, 1000, 2000, 4000] = 62,
                         iir_filter: int = 2):
         """
         Konfiguriert den BMP280-Sensor mit detaillierten Einstellungen.
