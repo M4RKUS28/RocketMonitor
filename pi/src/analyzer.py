@@ -32,6 +32,7 @@ class AltitudeAnalyzer:
         self.recording = False
         self.last_significant_change = None
         self.stable_since = None
+        self.sample_count = 0
         
         # Sammelpuffer für längere Aufzeichnungen
         self.recording_buffer = []
