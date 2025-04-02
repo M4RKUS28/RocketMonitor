@@ -33,6 +33,7 @@ class AltitudeAnalyzer:
         self.last_significant_change = None
         self.stable_since = None
         self.sample_count = 0
+        self.last_rate_log_time = time.time()
         
         # Sammelpuffer für längere Aufzeichnungen
         self.recording_buffer = []
