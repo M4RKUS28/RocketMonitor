@@ -162,6 +162,13 @@ class DatabaseManager:
                     return False
                     
                 self.connection = self.cnx_pool.get_connection()
+
+                # Always close any existing cursor before creating a new one
+                if self.cursor:
+                    try:
+                        self.cursor.close()
+                    except:
+                        pass
                 self.cursor = self.connection.cursor()
                 logger.info("Datenbankverbindung erfolgreich hergestellt")
                 
@@ -261,21 +268,38 @@ class DatabaseManager:
     
     def _get_raspberry_pi_id(self) -> Optional[int]:
         """
-        Sucht die ID des Raspberry Pi anhand des Namens in der Datenbank.
-        Wenn einmal gefunden, wird die ID dauerhaft im Cache gespeichert.
+        Searches for the Raspberry Pi ID by name in the database.
+        Once found, the ID is permanently cached.
         
         Returns:
-            Optional[int]: Die ID des Raspberry Pi oder None, wenn nicht gefunden
+            Optional[int]: The Raspberry Pi ID or None if not found
         """
-        # Wenn bereits eine ID gefunden wurde, direkt zurückgeben
+
+        # If already found an ID, return it
         if self.id_found and self.raspberry_id is not None:
             return self.raspberry_id
-            
-        # Nur wenn noch keine ID gefunden wurde, suchen
+        
+        # Add this to the beginning of _get_raspberry_pi_id
+        logger.debug(f"Attempting to get Raspberry Pi ID for '{self.raspberry_name}'")
+        logger.debug(f"Connection status: {self.connection is not None and self.connection.is_connected() if self.connection else False}")
+        logger.debug(f"Cursor status: {self.cursor is not None}")
+                
+        # Check connection and always get a fresh cursor
         if not self._check_connection():
             logger.warning("Keine Verbindung für Raspberry Pi ID-Abfrage")
             return None
-            
+        
+        # IMPORTANT: Always get a fresh cursor for this query
+        if self.connection and self.connection.is_connected():
+            # Close any existing cursor
+            if self.cursor:
+                try:
+                    self.cursor.close()
+                except:
+                    pass
+            # Get a fresh cursor
+            self.cursor = self.connection.cursor()
+                
         try:
             query = "SELECT id FROM raspberry_pis WHERE name = %s"
             self.cursor.execute(query, (self.raspberry_name,))
@@ -283,16 +307,23 @@ class DatabaseManager:
             
             if result:
                 self.raspberry_id = result[0]
-                self.id_found = True  # Markiere als gefunden für zukünftige Abfragen
+                self.id_found = True  # Mark as found for future queries
                 logger.info(f"Raspberry Pi '{self.raspberry_name}' gefunden mit ID {self.raspberry_id}")
                 return self.raspberry_id
             else:
                 logger.warning(f"Kein Raspberry Pi mit dem Namen '{self.raspberry_name}' gefunden")
-                # ID nicht gefunden, aber wir setzen nicht self.id_found=True, damit weitere Versuche stattfinden
+                # ID not found, but don't set self.id_found=True so we keep trying
                 return None
-                
+                    
         except Error as e:
             logger.error(f"Fehler bei der Suche nach Raspberry Pi ID: {e}")
+            # If there's an error, ensure we reset the cursor state
+            if self.connection and self.connection.is_connected():
+                try:
+                    self.cursor.close()
+                    self.cursor = self.connection.cursor()
+                except:
+                    pass
             return None
     
     def save_data(self, data_list: List[Dict]) -> None:
