@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { 
   Box, 
   Paper, 
@@ -19,11 +19,12 @@ import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { altitudeAPI } from '../api';
 import { useTheme } from '../contexts/ThemeContext';
+import _ from 'lodash'; // Für tiefe Vergleiche von Objekten
 
 // Chart.js Komponenten registrieren
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, ChartTooltip, Legend, Filler);
 
-// Auto-Refresh Intervall in Millisekunden (30 Sekunden)
+// Auto-Refresh Intervall in Millisekunden (20 Sekunden)
 const AUTO_REFRESH_INTERVAL = 20000;
 
 // Vordefinierte Farben für die Gruppen
@@ -41,6 +42,8 @@ const GROUP_COLORS = [
 const AltitudeChart = ({ teamId, title, startTime: initialStartTime, endTime: initialEndTime }) => {
   const { isDarkMode } = useTheme();
   const [chartData, setChartData] = useState(null);
+  const [prevChartData, setPrevChartData] = useState(null);
+  const [shouldAnimate, setShouldAnimate] = useState(true);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [lastRefreshed, setLastRefreshed] = useState(new Date());
@@ -62,7 +65,7 @@ const AltitudeChart = ({ teamId, title, startTime: initialStartTime, endTime: in
     return { startTime, endTime };
   }, [initialStartTime, initialEndTime]);
 
-  // Daten laden
+  // Daten laden mit Optimierung für Neudarstellung
   const fetchData = useCallback(async () => {
     if (!teamId) return;
     
@@ -73,7 +76,19 @@ const AltitudeChart = ({ teamId, title, startTime: initialStartTime, endTime: in
       const { startTime, endTime } = getTimeRange();
       
       const data = await altitudeAPI.getChartData(teamId, startTime, endTime);
+      
+      // Vergleiche mit vorherigen Daten, um festzustellen, ob es Änderungen gibt
+      const hasNewData = !prevChartData || 
+                        !_.isEqual(data.timestamps, prevChartData.timestamps) || 
+                        !_.isEqual(data.altitudes, prevChartData.altitudes) ||
+                        !_.isEqual(data.event_groups, prevChartData.event_groups);
+      
+      // Animation nur aktivieren, wenn neue Daten vorhanden sind
+      setShouldAnimate(hasNewData);
+      
+      // Chart-Daten aktualisieren
       setChartData(data);
+      setPrevChartData(data);
       setLastRefreshed(new Date());
     } catch (err) {
       console.error('Fehler beim Laden der Höhendaten:', err);
@@ -81,7 +96,7 @@ const AltitudeChart = ({ teamId, title, startTime: initialStartTime, endTime: in
     } finally {
       setLoading(false);
     }
-  }, [teamId, getTimeRange]);
+  }, [teamId, getTimeRange, prevChartData]);
 
   // Initiales Laden und Auto-Refresh Einrichtung
   useEffect(() => {
@@ -109,7 +124,7 @@ const AltitudeChart = ({ teamId, title, startTime: initialStartTime, endTime: in
   };
 
   // Chart-Konfiguration
-  const getChartConfig = () => {
+  const getChartConfig = useCallback(() => {
     if (!chartData || !chartData.timestamps || chartData.timestamps.length === 0) {
       return null;
     }
@@ -201,12 +216,10 @@ const AltitudeChart = ({ teamId, title, startTime: initialStartTime, endTime: in
       if (dataset.hidden) return dataset;
       
       const filteredData = [];
-      //let dataIndex = 0;
       
       hasVisibleDataAtIndex.forEach((isVisible, index) => {
         if (isVisible) {
           filteredData.push(dataset.data[index]);
-         // dataIndex++;
         }
       });
       
@@ -220,7 +233,10 @@ const AltitudeChart = ({ teamId, title, startTime: initialStartTime, endTime: in
       labels: visibleLabels,
       datasets: filteredDatasets
     };
-  };
+  }, [chartData, hiddenDatasets]);
+
+  // Verwende useMemo für die Chart-Daten, um unnötige Neuberechnungen zu vermeiden
+  const data = useMemo(() => getChartConfig(), [getChartConfig]);
 
   // Handle legend click to update hidden datasets state
   const handleLegendClick = (event, legendItem) => {
@@ -238,7 +254,8 @@ const AltitudeChart = ({ teamId, title, startTime: initialStartTime, endTime: in
     }
   };
 
-  const chartOptions = {
+  // Chart-Optionen mit bedingter Animation
+  const chartOptions = useMemo(() => ({
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
@@ -300,12 +317,11 @@ const AltitudeChart = ({ teamId, title, startTime: initialStartTime, endTime: in
       axis: 'x',
       intersect: false,
     },
-    animation: {
+    // Animation basierend auf shouldAnimate aktivieren/deaktivieren
+    animation: shouldAnimate ? {
       duration: 1000,
-    },
-  };
-
-  const data = getChartConfig();
+    } : false,
+  }), [isDarkMode, shouldAnimate, handleLegendClick]);
 
   // Berechnet die maximale relative Höhe aus allen normalisierten Gruppen
   const getMaxRelativeHeight = () => {
