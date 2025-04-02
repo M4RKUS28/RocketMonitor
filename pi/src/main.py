@@ -37,6 +37,7 @@ def setup_logging():
         ]
     )
     
+    
     # Logger für das Hauptmodul
     return logging.getLogger("AltitudeMonitor.Main")
 
