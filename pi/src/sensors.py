@@ -8,7 +8,7 @@ Ermöglicht die Kommunikation mit dem BMP280-Sensor über I2C.
 
 import logging
 from datetime import datetime
-from typing import Dict
+from typing import Dict, Literal
 
 # Für BMP280-Sensor
 try:
@@ -46,7 +46,8 @@ class SensorReader:
                 self.i2c, 
                 address=self.i2c_address
             )
-            self.sensor.sea_level_pressure = self.sea_level_pressure
+             # Konfiguriere Sensor mit Standardwerten
+            self.configure_sensor()
             
             logger.info(f"BMP280-Sensor initialisiert mit Adresse 0x{self.i2c_address:02x}")
         except ValueError as e:
@@ -55,6 +56,68 @@ class SensorReader:
         except Exception as e:
             logger.error(f"Fehler bei der Sensorinitialisierung: {e}")
             raise
+    
+    def configure_sensor(self, 
+                        mode: Literal["normal", "forced", "sleep"] = "normal", 
+                        temperature_oversampling: Literal[1, 2, 4, 8, 16] = 4,
+                        pressure_oversampling: Literal[1, 2, 4, 8, 16] = 16,
+                        temperature_standby: Literal[
+                            #0.5, 62.5,
+                            125, 250, 500, 1000, 2000, 4000] = 500,
+                        iir_filter: int = 2):
+        """
+        Konfiguriert den BMP280-Sensor mit detaillierten Einstellungen.
+        
+        Argumente:
+        - mode: Betriebsmodus des Sensors
+          * 'normal': Kontinuierliche Messungen
+          * 'forced': Einzelmessung auf Anfrage
+          * 'sleep': Energiesparmodus
+        
+        - temperature_oversampling: Überabtastung für Temperatur
+          * Höhere Werte verbessern Genauigkeit, erhöhen aber Stromverbrauch
+          * Mögliche Werte: 1, 2, 4, 8, 16
+        
+        - pressure_oversampling: Überabtastung für Luftdruck
+          * Höhere Werte verbessern Genauigkeit, erhöhen aber Stromverbrauch
+          * Mögliche Werte: 1, 2, 4, 8, 16
+        
+        - temperature_standby: Wartezeit zwischen Messungen im Normalmodus
+          * Beeinflusst Stromverbrauch und Messfrequenz
+          * Werte in Millisekunden: 0.5, 62.5, 125, 250, 500, 1000, 2000, 4000
+        
+        - iir_filter: IIR-Filtereinstellung
+          * Reduziert Rauschen in den Messwerten
+          * Typische Werte: 0-4 (0 = Filter aus)
+        """
+        if self.sensor is None:
+            raise RuntimeError("Sensor nicht initialisiert")
+        
+        # Setze Meereshöhendruck
+        self.sensor.sea_level_pressure = self.sea_level_pressure
+        
+        # In der Adafruit-Bibliothek gibt es keine direkte Methode für alle diese Einstellungen
+        # Daher können wir nur einige grundlegende Konfigurationen vornehmen
+        
+        # Überabtastung für Temperatur und Druck
+        # HINWEIS: Die Adafruit-Bibliothek unterstützt nicht alle Feinheiten des originalen BMP280-Treibers
+        self.sensor.overscan_temperature = temperature_oversampling
+        self.sensor.overscan_pressure = pressure_oversampling
+        
+        # Modus setzen
+        if mode == "normal":
+            self.sensor.mode = adafruit_bmp280.MODE_NORMAL
+        elif mode == "forced":
+            self.sensor.mode = adafruit_bmp280.MODE_FORCED
+        else:  # sleep
+            self.sensor.mode = adafruit_bmp280.MODE_SLEEP
+        
+        logger.info(
+            f"Sensor konfiguriert: "
+            f"Modus={mode}, "
+            f"Temp-Oversampling={temperature_oversampling}, "
+            f"Druck-Oversampling={pressure_oversampling}"
+        )
     
     def read(self) -> Dict:
         """Liest einen Messwert vom Sensor."""

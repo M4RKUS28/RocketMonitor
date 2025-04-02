@@ -39,7 +39,32 @@ class AltitudeAnalyzer:
         
         logger.info(f"Höhenanalysator initialisiert: Schwellwert={self.threshold_meters}m, "
                    f"Vergleichsfenster={self.comparison_window}s, "
-                   f"Stabilisierungszeit={self.stabilization_time}s")
+                   f"Stabilisierungszeit={self.stabilization_time}s, "
+                   f"Erwartete Abtastrate={self.expected_sample_rate} Hz")
+
+    def _log_sampling_rate(self):
+        """
+        Loggt die tatsächliche Abtastrate einmal pro Minute.
+        
+        Vergleicht die Anzahl der Samples mit der erwarteten Abtastrate.
+        """
+        current_time = time.time()
+        time_elapsed = current_time - self.last_rate_log_time
+        
+        # Nur einmal pro Minute loggen
+        if time_elapsed >= 60:
+            # Berechnete Abtastrate
+            actual_sample_rate = self.sample_count / time_elapsed
+            
+            logger.info(
+                f"Abtastrate - Erwartet: {self.expected_sample_rate} Hz, "
+                f"Tatsächlich: {actual_sample_rate:.2f} Hz, "
+                f"Samples in {time_elapsed:.1f}s: {self.sample_count}"
+            )
+            
+            # Zurücksetzen für die nächste Messung
+            self.sample_count = 0
+            self.last_rate_log_time = current_time
     
     def analyze(self, current_data: Dict) -> Tuple[bool, Optional[List[Dict]]]:
         """
@@ -50,6 +75,11 @@ class AltitudeAnalyzer:
             - recording_changed: True, wenn sich der Aufzeichnungsstatus geändert hat
             - data_to_save: Daten zum Speichern, wenn eine Aufzeichnung endet
         """
+         # Sampling Rate Tracking
+        self.sample_count += 1
+        self._log_sampling_rate()
+
+        
         # Prüfen, ob aktuelle Messung gültig ist
         if current_data.get("altitude") is None:
             # Auch bei ungültiger Messung: Falls aufzeichnend, füge Daten hinzu
@@ -106,6 +136,9 @@ class AltitudeAnalyzer:
                 
                 logger.info(f"Signifikante Höhenänderung erkannt: {altitude_change:.2f}m - "
                            f"Aufzeichnung gestartet mit {len(initial_data)} initialen Datenpunkten")
+            else:
+                # Fortsetzung der Aufzeichnung
+                logger.debug(f"Resette Stabilisierungsphase: {altitude_change:.2f}m")
         else:
             # Keine signifikante Höhenänderung
             if self.recording:

@@ -6,6 +6,7 @@ Ringpuffer-Modul für den BMP280 Höhenänderungs-Monitor.
 Implementiert einen Ringpuffer für die letzten x Sekunden an Sensordaten.
 """
 
+from datetime import datetime, timedelta
 import logging
 from collections import deque
 from typing import List, Dict
@@ -38,9 +39,37 @@ class RingBuffer:
         """Gibt alle Daten im Puffer zurück."""
         return list(self.buffer)
     
-    def get_last_n_seconds(self, seconds: int) -> List[Dict]:
+    def get_last_n_seconds_alt(self, seconds: int) -> List[Dict]:
         """Gibt die Daten der letzten n Sekunden zurück."""
         sample_rate = self.config.get("sensor", "sample_rate_hz")
         n_samples = int(seconds * sample_rate)
         n_samples = min(n_samples, len(self.buffer))
         return list(self.buffer)[-n_samples:]
+    
+    def get_last_n_seconds(self, seconds: int) -> List[Dict]:
+        """
+        Gibt die Daten der letzten n Sekunden zurück, basierend auf der aktuellen Zeit.
+        
+        Diese Methode filtert Datenpunkte, die innerhalb des angegebenen Zeitfensters 
+        vor der aktuellen Zeit liegen.
+        
+        Args:
+            seconds (int): Anzahl der Sekunden, für die Daten zurückgegeben werden sollen
+        
+        Returns:
+            List[Dict]: Liste der Datenpunkte aus den letzten n Sekunden
+        """
+        if not self.buffer:
+            return []
+        
+        # Aktuelle Zeit als Referenz
+        current_time = datetime.now()
+        
+        # Zeitgrenze berechnen
+        time_threshold = current_time - timedelta(seconds=seconds)
+        
+        # Filtere Datenpunkte, die innerhalb des Zeitfensters liegen
+        return [
+            data for data in reversed(self.buffer) 
+            if data.get('timestamp') and data['timestamp'] >= time_threshold
+        ]
