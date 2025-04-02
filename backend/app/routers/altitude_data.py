@@ -21,7 +21,7 @@ router = APIRouter(
 
 
 AVERAGE_OF = 20  # Normalisierungsfaktor für die Höhenwerte
-
+MAXPOINTS_PER_SEC = 10  # Maximale Punkte pro Sekunde
 
 def calculate_averaged_altitudes(altitudes: List[float], x: int) -> List[float]:
     """
@@ -73,22 +73,23 @@ async def get_chart_data(
     """
     Gibt Höhendaten für ein bestimmtes Team zurück, formatiert für die Chart-Darstellung.
     Verwendet eine optimierte SQL-Abfrage mit EXISTS, um effizient nur relevante Daten zu laden.
+    Die Daten werden auf Viertelsekunden-Intervalle gerundet und gruppiert, um die Datenmenge zu reduzieren.
     """
     # Benutzer darf nur sein eigenes Team oder als Admin alle Teams sehen
     if not current_user.is_admin and current_user.team_id != team_id:
         raise HTTPException(status_code=403, detail="Keine Berechtigung für dieses Team")
-    
+   
     # Überprüfen, ob das Team existiert
     team = db.query(models.Team).filter(models.Team.id == team_id).first()
     if team is None:
         raise HTTPException(status_code=404, detail="Team nicht gefunden")
-    
+   
     # Standardzeitraum: letzte 24 Stunden, wenn nicht anders angegeben
     if start_time is None:
         start_time = datetime.now() - timedelta(days=1)
     if end_time is None:
-        end_time = datetime.now()  + timedelta(days=1)
-    
+        end_time = datetime.now() + timedelta(days=1)
+   
     # Stellen Sie sicher, dass start_time und end_time als naive Datetimes vorliegen
     # (entferne Zeitzoneninformationen, wenn vorhanden)
     if start_time.tzinfo is not None:
@@ -97,15 +98,8 @@ async def get_chart_data(
     if end_time.tzinfo is not None:
         # Convert to UTC, then remove timezone info
         end_time = end_time.astimezone(timezone.utc).replace(tzinfo=None)
-
-
-    
+   
     # Optimierte SQL-Abfrage mit EXISTS-Klausel
-    # Diese findet alle Höhendaten, die:
-    # 1. Von einem Raspberry Pi stammen, der dem Team zugewiesen wurde
-    # 2. Innerhalb des Zeitraums der Zuweisung liegen
-    # 3. Innerhalb des angefragten Zeitraums liegen
-    
     exists_clause = exists().where(
         and_(
             models.team_raspberry_association.c.team_id == team_id,
@@ -115,30 +109,45 @@ async def get_chart_data(
         )
     )
     
-    altitude_query = db.query(models.AltitudeData).filter(
-      #  models.AltitudeData.timestamp >= start_time,
-      #  models.AltitudeData.timestamp <= end_time,
-        exists_clause
-    ).order_by(models.AltitudeData.timestamp)
+    # Erstelle einen Ausdruck für die gerundete Zeit (auf Viertelsekunden)
+    # Verwende MySQL-spezifische Funktionen
+    rounded_time = func.from_unixtime(
+        func.floor(func.unix_timestamp(models.AltitudeData.timestamp) * 4) / 4
+    ).label('rounded_time')
     
+    # Abfrage mit Gruppierung nach gerundeter Zeit, Event Group und Raspberry Pi ID
+    altitude_query = (
+        db.query(
+            rounded_time.label('timestamp'),  # Gerundete Zeit als Timestamp
+            func.avg(models.AltitudeData.altitude).label('altitude'),  # Durchschnittliche Höhe
+            models.AltitudeData.event_group,  # Event Group beibehalten
+            models.AltitudeData.raspberry_pi_id  # Raspberry Pi ID beibehalten
+        )
+        .filter(exists_clause)
+        # .filter(models.AltitudeData.timestamp >= start_time)
+        # .filter(models.AltitudeData.timestamp <= end_time)
+        .group_by(rounded_time, models.AltitudeData.event_group, models.AltitudeData.raspberry_pi_id)
+        .order_by(rounded_time)
+    )
+    
+    # Führe die Abfrage aus
     altitude_data = altitude_query.all()
-    
+   
     # Extrahiere die Zeitstempel und Höhenwerte
     timestamps = [data.timestamp for data in altitude_data]
     altitudes = [data.altitude for data in altitude_data]
-    event_groups = [data.event_group for data in altitude_data]  # Neue Eigenschaft
-
-
-    # Durchschnittswerte berechnen (hier mit x=2 als Beispiel)
-    altitudes = calculate_averaged_altitudes(altitudes, AVERAGE_OF)
+    event_groups = [data.event_group for data in altitude_data]
     
+    # Durchschnittswerte berechnen
+    altitudes = calculate_averaged_altitudes(altitudes, AVERAGE_OF)
+   
     # Berechne die maximale Höhe
     max_altitude = max(altitudes) if altitudes else 0
-    
+   
     return schemas.ChartData(
         timestamps=timestamps,
         altitudes=altitudes,
-        event_groups=event_groups,  # Neue Eigenschaft
+        event_groups=event_groups,
         max_altitude=max_altitude,
         team_name=team.name
     )
