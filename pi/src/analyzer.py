@@ -155,7 +155,9 @@ class AltitudeAnalyzer:
                            f"Aufzeichnung gestartet mit {len(initial_data)} initialen Datenpunkten")
             else:
                 # Fortsetzung der Aufzeichnung
-                logger.debug(f"Resette Stabilisierungsphase: {altitude_change:.2f}m")
+                logger.info(f"Resette Stabilisierungsphase: {altitude_change:.2f}m")
+                # Stabilisierungsphase zurücksetzen
+                self.stable_since = None
         else:
             # Keine signifikante Höhenänderung
             if self.recording:
