@@ -1,0 +1,19 @@
+# Add content:
+[Unit]
+Description=Altitude Monitoring Service
+After=network.target
+
+[Service]
+User=markus
+WorkingDirectory=/home/markus/RocketMonitor/pi/
+ExecStart=/home/markus/RocketMonitor/pi/.venv/bin/python /home/markus/RocketMonitor/pi/src/main.py
+Restart=always
+RestartSec=10
+Environment="PYTHONPATH=/home/markus/RocketMonitor/pi/src/"
+
+
+[Install]
+WantedBy=multi-user.target
+
+
+# journalctl -u altitude-monitor.service -f

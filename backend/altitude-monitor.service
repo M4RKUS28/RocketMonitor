@@ -1,0 +1,20 @@
+# This is a systemd service file for the altitude monitoring script.
+# It should be placed in /etc/systemd/system/altitude-monitor.service
+[Unit]
+Description=Altitude Monitoring Service
+After=network.target
+
+[Service]
+User=pi
+WorkingDirectory=/home/m4rkus28-georgslauf/htdocs/georgslauf.m4rkus28.de/backend
+ExecStart=/bin/bash /home/m4rkus28-georgslauf/htdocs/georgslauf.m4rkus28.de/backend/run.sh
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+
+# Enable the service to start on boot
+# sudo systemctl enable altitude-monitor.service
+# Start the service immediately
+# sudo systemctl start altitude-monitor.service

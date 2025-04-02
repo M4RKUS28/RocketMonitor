@@ -6,6 +6,11 @@ Sensor-Kommunikationsmodul für den BMP280 Höhenänderungs-Monitor.
 Ermöglicht die Kommunikation mit dem BMP280-Sensor über I2C.
 """
 
+#  https://docs.circuitpython.org/projects/bmp280/en/latest/_modules/adafruit_bmp280.html#Adafruit_BMP280
+#  https://cdn-shop.adafruit.com/datasheets/BST-BMP280-DS001-11.pdf
+#  https://docs.circuitpython.org/projects/bmp280/en/latest/api.html#adafruit_bmp280.Adafruit_BMP280.overscan_pressure
+
+
 import logging
 from datetime import datetime
 from typing import Dict, Literal
@@ -23,6 +28,36 @@ except (ImportError, NotImplementedError):
 from config import Config
 
 logger = logging.getLogger("AltitudeMonitor.Sensor")
+
+
+# Oversampling Optionen
+OVERSCAN_OPTIONS = {
+    1: adafruit_bmp280.OVERSCAN_X1,
+    2: adafruit_bmp280.OVERSCAN_X2,
+    4: adafruit_bmp280.OVERSCAN_X4,
+    8: adafruit_bmp280.OVERSCAN_X8,
+    16: adafruit_bmp280.OVERSCAN_X16
+}
+
+# Standby Zeit Optionen
+STANDBY_OPTIONS = {
+    125: adafruit_bmp280.STANDBY_TC_125,
+    250: adafruit_bmp280.STANDBY_TC_250,
+    500: adafruit_bmp280.STANDBY_TC_500,
+    1000: adafruit_bmp280.STANDBY_TC_1000,
+    2000: adafruit_bmp280.STANDBY_TC_2000,
+    4000: adafruit_bmp280.STANDBY_TC_4000
+}
+
+# IIR Filter Optionen
+IIR_FILTER_OPTIONS = {
+    0: adafruit_bmp280.IIR_FILTER_DISABLE,
+    2: adafruit_bmp280.IIR_FILTER_X2,
+    4: adafruit_bmp280.IIR_FILTER_X4,
+    8: adafruit_bmp280.IIR_FILTER_X8,
+    16: adafruit_bmp280.IIR_FILTER_X16
+}
+
 
 class SensorReader:
     """Liest Daten vom BMP280-Sensor."""
@@ -93,22 +128,33 @@ class SensorReader:
         if self.sensor is None:
             raise RuntimeError("Sensor nicht initialisiert")
         
-        # Setze Meereshöhendruck
+         # Setze Meereshöhendruck
         self.sensor.sea_level_pressure = self.sea_level_pressure
         
-        # In der Adafruit-Bibliothek gibt es keine direkte Methode für alle diese Einstellungen
-        # Daher können wir nur einige grundlegende Konfigurationen vornehmen
-        
         # Überabtastung für Temperatur und Druck
-        # HINWEIS: Die Adafruit-Bibliothek unterstützt nicht alle Feinheiten des originalen BMP280-Treibers
-        self.sensor.overscan_temperature = temperature_oversampling
-        self.sensor.overscan_pressure = pressure_oversampling
+        # Verwende Standardwert, wenn der übergebene Wert nicht in den Optionen ist
+        self.sensor.overscan_temperature = OVERSCAN_OPTIONS.get(
+            temperature_oversampling, adafruit_bmp280.OVERSCAN_X4
+        )
+        self.sensor.overscan_pressure = OVERSCAN_OPTIONS.get(
+            pressure_oversampling, adafruit_bmp280.OVERSCAN_X16
+        )
         
+        # Standby-Zeit
+        self.sensor.standby_period = STANDBY_OPTIONS.get(
+            temperature_standby, adafruit_bmp280.STANDBY_TC_500
+        )
+        
+        # IIR-Filter
+        self.sensor.iir_filter = IIR_FILTER_OPTIONS.get(
+            iir_filter, adafruit_bmp280.IIR_FILTER_X2
+        )
+
         # Modus setzen
         if mode == "normal":
             self.sensor.mode = adafruit_bmp280.MODE_NORMAL
         elif mode == "forced":
-            self.sensor.mode = adafruit_bmp280.MODE_FORCED
+            self.sensor.mode = adafruit_bmp280.MODE_FORCE
         else:  # sleep
             self.sensor.mode = adafruit_bmp280.MODE_SLEEP
         
@@ -116,7 +162,8 @@ class SensorReader:
             f"Sensor konfiguriert: "
             f"Modus={mode}, "
             f"Temp-Oversampling={temperature_oversampling}, "
-            f"Druck-Oversampling={pressure_oversampling}"
+            f"Druck-Oversampling={pressure_oversampling}, "
+            f"Standby-Zeit={temperature_standby}ms"
         )
     
     def read(self) -> Dict:
