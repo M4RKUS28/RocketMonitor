@@ -16,4 +16,5 @@ Environment="PYTHONPATH=/home/markus/RocketMonitor/pi/src/"
 WantedBy=multi-user.target
 
 
+# sudo systemctl restart altitude-monitor.service
 # journalctl -u altitude-monitor.service -f

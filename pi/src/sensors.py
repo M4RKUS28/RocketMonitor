@@ -45,8 +45,6 @@ STANDBY_OPTIONS = {
     250: adafruit_bmp280.STANDBY_TC_250,
     500: adafruit_bmp280.STANDBY_TC_500,
     1000: adafruit_bmp280.STANDBY_TC_1000,
-    2000: adafruit_bmp280.STANDBY_TC_2000,
-    4000: adafruit_bmp280.STANDBY_TC_4000
 }
 
 # IIR Filter Optionen
