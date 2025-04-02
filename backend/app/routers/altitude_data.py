@@ -20,7 +20,7 @@ router = APIRouter(
 
 
 
-AVERAGE_OF = 20  # Normalisierungsfaktor für die Höhenwerte
+AVERAGE_OF = 2  # Normalisierungsfaktor für die Höhenwerte
 MAXPOINTS_PER_SEC = 10  # Maximale Punkte pro Sekunde
 
 def calculate_averaged_altitudes(altitudes: List[float], x: int) -> List[float]:
@@ -112,7 +112,7 @@ async def get_chart_data(
     # Erstelle einen Ausdruck für die gerundete Zeit (auf Viertelsekunden)
     # Verwende MySQL-spezifische Funktionen
     rounded_time = func.from_unixtime(
-        func.floor(func.unix_timestamp(models.AltitudeData.timestamp) * 4) / 4
+        func.floor(func.unix_timestamp(models.AltitudeData.timestamp) * MAXPOINTS_PER_SEC) / MAXPOINTS_PER_SEC
     ).label('rounded_time')
     
     # Abfrage mit Gruppierung nach gerundeter Zeit, Event Group und Raspberry Pi ID
