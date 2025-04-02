@@ -43,7 +43,7 @@ def setup_logging():
 class AltitudeMonitor:
     """Hauptklasse für die Höhenüberwachung."""
     
-    def __init__(self, config_path="/etc/altitude_monitor/config.json"):
+    def __init__(self, config_path="/home/markus/config.json"):
         """Initialisiert den Höhenmonitor."""
         self.logger = setup_logging()
         self.logger.info("Initialisiere Höhenmonitor")
