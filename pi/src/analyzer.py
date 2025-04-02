@@ -26,7 +26,8 @@ class AltitudeAnalyzer:
         self.threshold_meters = config.get("detection", "threshold_meters")
         self.comparison_window = config.get("detection", "comparison_window_seconds")
         self.stabilization_time = config.get("detection", "stabilization_time_seconds")
-        
+        self.expected_sample_rate = config.get("sensor", "sample_rate_hz")
+
         # Status für Höhenänderungserkennung
         self.recording = False
         self.last_significant_change = None
@@ -79,7 +80,7 @@ class AltitudeAnalyzer:
         self.sample_count += 1
         self._log_sampling_rate()
 
-        
+
         # Prüfen, ob aktuelle Messung gültig ist
         if current_data.get("altitude") is None:
             # Auch bei ungültiger Messung: Falls aufzeichnend, füge Daten hinzu
